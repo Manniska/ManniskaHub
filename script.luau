@@ -95,14 +95,14 @@ fovStroke.Parent = fovCircle
 local function isTeammate(player: Player): boolean
     if not Settings.TeamCheckEnabled then return false end
     if player == LocalPlayer then return true end
-    
+
     -- Strict Team Object Check (most reliable across Roblox games)
     if player.Team and LocalPlayer.Team then
         if player.Team == LocalPlayer.Team then
             return true
         end
     end
-    
+
     return false
 end
 
@@ -184,7 +184,7 @@ local function updatePlayerVisuals(player: Player)
 
     local teammate = isTeammate(player)
     local activeColor = (teammate and Settings.TeamColorEnabled) and Settings.FriendlyColor or Settings.EnemyColor
-    
+
     local isVisible = true
     if Settings.TeamCheckEnabled and teammate and not Settings.TeamColorEnabled then
         isVisible = false
@@ -1154,20 +1154,20 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
     -- 4. Aim Assist System
     if Settings.AimAssistEnabled then
         local isAimKeyDown = UserInputService:IsKeyDown(Settings.AimAssistKey)
-        
+
         if isAimKeyDown then
             local closestTarget = nil
             local closestDistance = math.huge
-            
+
             for player, data in pairs(trackedPlayers) do
                 local teammate = isTeammate(player)
                 local isAllowed = Settings.TeamCheckEnabled and not Settings.TeamColorEnabled and teammate
                 if isAllowed then continue end
-                
+
                 if data.CharModel and data.CharModel.Parent then
                     local targetPart: BasePart?
                     local boneName = Settings.AimAssistBone
-                    
+
                     if boneName == "Head" then
                         targetPart = data.CharModel:FindFirstChild("Head")
                     elseif boneName == "Neck" then
@@ -1175,7 +1175,7 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
                     elseif boneName == "Chest" then
                         targetPart = data.CharModel:FindFirstChild("UpperTorso") or data.CharModel:FindFirstChild("Torso") or data.CharModel:FindFirstChild("HumanoidRootPart")
                     end
-                    
+
                     if targetPart and targetPart:IsA("BasePart") then
                         local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
                         if onScreen then
@@ -1183,7 +1183,7 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
                             local dx = screenPos.X - centerX
                             local dy = screenPos.Y - centerY
                             local distance = math.sqrt(dx * dx + dy * dy)
-                            
+
                             if distance < Settings.AimAssistFOV and distance < closestDistance then
                                 closestDistance = distance
                                 closestTarget = targetPart
@@ -1192,18 +1192,18 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
                     end
                 end
             end
-            
+
             if closestTarget then
                 local targetCFrame = closestTarget.CFrame
                 local currentMouseDelta = UserInputService:GetMouseDelta()
                 local aimDelta = (targetCFrame * CFrame.new(0, 0, -10) - Camera.CFrame.p).Unit * Settings.AimAssistSmoothness
-                
+
                 UserInputService.SendMouseMovement(
                     math.floor(aimDelta.X * 100),
                     math.floor(aimDelta.Y * 100)
                 )
             end
-            
+
             -- Update FOV Circle
             fovCircle.Visible = true
             fovCircle.Size = UDim2.new(0, Settings.AimAssistFOV * 2, 0, Settings.AimAssistFOV * 2)
@@ -1219,20 +1219,20 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
     -- 5. Silent Aim System
     if Settings.SilentAimEnabled then
         local isSilentAimKeyDown = UserInputService:IsKeyDown(Settings.SilentAimKey)
-        
+
         if isSilentAimKeyDown and UserInputService:IsMouseButton1Down() then
             local closestTarget = nil
             local closestDistance = math.huge
-            
+
             for player, data in pairs(trackedPlayers) do
                 local teammate = isTeammate(player)
                 local isAllowed = Settings.TeamCheckEnabled and not Settings.TeamColorEnabled and teammate
                 if isAllowed then continue end
-                
+
                 if data.CharModel and data.CharModel.Parent then
                     local targetPart: BasePart?
                     local boneName = Settings.SilentAimBone
-                    
+
                     if boneName == "Head" then
                         targetPart = data.CharModel:FindFirstChild("Head")
                     elseif boneName == "Neck" then
@@ -1240,7 +1240,7 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
                     elseif boneName == "Chest" then
                         targetPart = data.CharModel:FindFirstChild("UpperTorso") or data.CharModel:FindFirstChild("Torso") or data.CharModel:FindFirstChild("HumanoidRootPart")
                     end
-                    
+
                     if targetPart and targetPart:IsA("BasePart") then
                         local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
                         if onScreen then
@@ -1248,7 +1248,7 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
                             local dx = screenPos.X - centerX
                             local dy = screenPos.Y - centerY
                             local distance = math.sqrt(dx * dx + dy * dy)
-                            
+
                             if distance < Settings.SilentAimFOV and distance < closestDistance then
                                 closestDistance = distance
                                 closestTarget = targetPart
@@ -1257,33 +1257,33 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
                     end
                 end
             end
-            
+
             if closestTarget then
                 local weapon = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
                 if weapon and weapon:IsA("Tool") then
                     -- Get weapon handle position
                     local handle = weapon:FindFirstChild("Handle")
                     local weaponPosition = handle and handle.Position or Camera.CFrame.p
-                    
+
                     -- Calculate direction to target
                     local targetPosition = closestTarget.Position
                     local direction = (targetPosition - weaponPosition).Unit
-                    
+
                     -- Modify mouse location for games that use it
                     local mouse = LocalPlayer:GetMouse()
                     mouse.X = Camera.ViewportSize.X / 2
                     mouse.Y = Camera.ViewportSize.Y / 2
-                    
+
                     -- Set weapon attribute if it exists
                     if weapon:GetAttribute("MouseLocation") then
                         weapon:SetAttribute("MouseLocation", targetPosition)
                     end
-                    
+
                     -- Set local player attribute if it exists
                     if LocalPlayer.Character:GetAttribute("MouseLocation") then
                         LocalPlayer.Character:SetAttribute("MouseLocation", targetPosition)
                     end
-                    
+
                     -- Modify weapon firing if it has a fire event
                     if weapon.FireServer then
                         -- Hook the fire event to redirect bullets
