@@ -385,7 +385,8 @@ local function buildModernUI()
     local dragBar = Instance.new("Frame")
     dragBar.Name = "DragBar"
     dragBar.Size = UDim2.new(1, 0, 0, 40)
-    dragBar.BackgroundColor3 = Color3.fromRGB(22, 25, 30)\n    dragBar.BorderSizePixel = 0
+    dragBar.BackgroundColor3 = Color3.fromRGB(22, 25, 30)
+    dragBar.BorderSizePixel = 0
     dragBar.Parent = panel
 
     local dragBarCorner = Instance.new("UICorner")
@@ -424,7 +425,8 @@ local function buildModernUI()
     navBar.Name = "NavBar"
     navBar.Size = UDim2.new(1, -24, 0, 32)
     navBar.Position = UDim2.new(0, 12, 0, 48)
-    navBar.BackgroundColor3 = Color3.fromRGB(24, 28, 35)\n    navBar.BorderSizePixel = 0
+    navBar.BackgroundColor3 = Color3.fromRGB(24, 28, 35)
+    navBar.BorderSizePixel = 0
     navBar.Parent = panel
 
     local navCorner = Instance.new("UICorner")
