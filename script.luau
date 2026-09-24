@@ -65,7 +65,7 @@ boxContainer.Parent = screenGui
 
 local highlightHolder = Instance.new("Folder")
 highlightHolder.Name = "HighlightHolder"
-highlightHolder.Parent = screenGui
+highlightHolder.Parent = PlayerGui
 
 -- FOV Circle for Aim Assist
 local fovCircle = Instance.new("Frame")
@@ -1019,10 +1019,12 @@ local function buildModernUI()
     end)
 
     -----------------------------------------------------------------
-    -- Right-Shift Minimize / Restore Toggle
+    -- Minimize / Restore Toggle
     -----------------------------------------------------------------
     local uiVisible = true
     local isAnimating = false
+    local panelOriginalSize = panel.Size
+    local panelOriginalTransparency = panel.BackgroundTransparency
 
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
@@ -1033,15 +1035,15 @@ local function buildModernUI()
             if uiVisible then
                 panel.Visible = true
                 local openTween = TweenService:Create(panel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                    BackgroundTransparency = 0.12,
-                    Size = UDim2.new(0, 240, 0, 260)
+                    BackgroundTransparency = panelOriginalTransparency,
+                    Size = panelOriginalSize
                 })
                 openTween:Play()
                 openTween.Completed:Connect(function() isAnimating = false end)
             else
                 local closeTween = TweenService:Create(panel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
                     BackgroundTransparency = 1,
-                    Size = UDim2.new(0, 240, 0, 0)
+                    Size = UDim2.new(0, 0, 0, 40)
                 })
                 closeTween:Play()
                 closeTween.Completed:Connect(function()
@@ -1096,7 +1098,7 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
         local teammate = isTeammate(player)
         local isAllowed = Settings.BoxesEnabled and (not Settings.TeamCheckEnabled or Settings.TeamColorEnabled or not teammate)
 
-        if data.Box2D and isAllowed and data.CharModel and data.CharModel.Parent then
+        if data.Box2D and isAllowed and data.CharModel and data.CharModel.Parent and isCharacterAlive(data.CharModel) then
             local cf, sz = getCustomBoundingBox(data.CharModel)
             local half = sz * 0.5
 
