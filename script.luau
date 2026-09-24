@@ -17,7 +17,7 @@ local Settings = {
     BoxesEnabled = true,          -- 2D Screen-space Box ESP
     NametagsEnabled = true,
     TeamCheckEnabled = true,
-    ShowTeammates = true,
+    TeamColorEnabled = true,      -- Toggles whether teammates get team color or have no ESP
     EnemyColor = Color3.fromRGB(255, 65, 65),
     FriendlyColor = Color3.fromRGB(0, 180, 255),
     OutlineColor = Color3.fromRGB(255, 255, 255),
@@ -61,8 +61,23 @@ highlightHolder.Parent = screenGui
 ---------------------------------------------------------------------
 local function isTeammate(player: Player): boolean
     if not Settings.TeamCheckEnabled then return false end
-    if #Teams:GetTeams() == 0 then return false end
-    return player.Team ~= nil and player.Team == LocalPlayer.Team
+    if player == LocalPlayer then return true end
+    
+    -- Check Team object equality
+    if player.Team and LocalPlayer.Team then
+        if player.Team == LocalPlayer.Team then
+            return true
+        end
+    end
+    
+    -- Check TeamColor if set
+    if player.TeamColor and LocalPlayer.TeamColor then
+        if player.TeamColor == LocalPlayer.TeamColor and player.TeamColor ~= BrickColor.new("Medium stone grey") then
+            return true
+        end
+    end
+    
+    return false
 end
 
 local function isCharacterAlive(character: Model?): boolean
@@ -142,10 +157,10 @@ local function updatePlayerVisuals(player: Player)
     if not data then return end
 
     local teammate = isTeammate(player)
-    local activeColor = teammate and Settings.FriendlyColor or Settings.EnemyColor
+    local activeColor = (teammate and Settings.TeamColorEnabled) and Settings.FriendlyColor or Settings.EnemyColor
     
     local isVisible = true
-    if Settings.TeamCheckEnabled and teammate and not Settings.ShowTeammates then
+    if Settings.TeamCheckEnabled and teammate and not Settings.TeamColorEnabled then
         isVisible = false
     end
 
@@ -186,9 +201,9 @@ local function setupCharacterDisplay(player: Player, character: Model)
     if not anchor or not character.Parent then return end
 
     local teammate = isTeammate(player)
-    local initialColor = teammate and Settings.FriendlyColor or Settings.EnemyColor
+    local initialColor = (teammate and Settings.TeamColorEnabled) and Settings.FriendlyColor or Settings.EnemyColor
     local isVisible = true
-    if Settings.TeamCheckEnabled and teammate and not Settings.ShowTeammates then
+    if Settings.TeamCheckEnabled and teammate and not Settings.TeamColorEnabled then
         isVisible = false
     end
 
@@ -728,8 +743,8 @@ local function buildModernUI()
         for player in pairs(trackedPlayers) do updatePlayerVisuals(player) end
     end)
 
-    createToggleButton(tabPages["Misc"], "Show Teammates", 38, Settings.ShowTeammates, function(enabled)
-        Settings.ShowTeammates = enabled
+    createToggleButton(tabPages["Misc"], "Team Color", 38, Settings.TeamColorEnabled, function(enabled)
+        Settings.TeamColorEnabled = enabled
         for player in pairs(trackedPlayers) do updatePlayerVisuals(player) end
     end)
 
@@ -855,7 +870,7 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
     -- 3. Live 2D Box projection & distance tags
     for player, data in pairs(trackedPlayers) do
         local teammate = isTeammate(player)
-        local isAllowed = Settings.BoxesEnabled and (not Settings.TeamCheckEnabled or Settings.ShowTeammates or not teammate)
+        local isAllowed = Settings.BoxesEnabled and (not Settings.TeamCheckEnabled or Settings.TeamColorEnabled or not teammate)
 
         if data.Box2D and isAllowed and data.CharModel and data.CharModel.Parent then
             local cf, sz = getCustomBoundingBox(data.CharModel)
