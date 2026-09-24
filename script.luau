@@ -14,7 +14,7 @@ local Camera = workspace.CurrentCamera or workspace:WaitForChild("Camera")
 -- State settings
 local Settings = {
     HighlightsEnabled = true,
-    BoxesEnabled = true,
+    BoxesEnabled = true,          -- 2D Screen-space Box ESP
     NametagsEnabled = true,
     TeamCheckEnabled = true,
     ShowTeammates = true,
@@ -28,8 +28,8 @@ local Settings = {
 
 type TrackedData = {
     Highlight: Highlight?,
-    Box: SelectionBox?,
-    BoxAdorneePart: BasePart?,
+    Box2D: Frame?,
+    BoxStroke: UIStroke?,
     Tag: BillboardGui?,
     Label: TextLabel?,
     TargetAnchor: BasePart?,
@@ -39,6 +39,17 @@ type TrackedData = {
 
 local trackedPlayers: { [Player]: TrackedData } = {}
 local localAnchor: BasePart? = nil
+
+-- Dedicated ScreenGui for HUD & 2D Screen-Space Boxes
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TacticalRadarHUD"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.Parent = PlayerGui
+
+local boxContainer = Instance.new("Folder")
+boxContainer.Name = "2D_Boxes"
+boxContainer.Parent = screenGui
 
 local espHolder = Camera:FindFirstChild("ESPHolder") :: Folder?
 if not espHolder then
@@ -56,12 +67,10 @@ local function isTeammate(player: Player): boolean
     return player.Team ~= nil and player.Team == LocalPlayer.Team
 end
 
--- Works for custom models WITHOUT a Humanoid (monsters, custom rigs, machines)
 local function isCharacterAlive(character: Model?): boolean
     if not character or not character.Parent or not character:IsDescendantOf(workspace) then
         return false
     end
-    -- Check if Humanoid exists; if it does NOT, we verify the model has live physical parts
     local humanoid = character:FindFirstChildOfClass("Humanoid") or character:FindFirstChildWhichIsA("Humanoid", true)
     if humanoid and humanoid.Health <= 0 then
         return false
@@ -69,14 +78,12 @@ local function isCharacterAlive(character: Model?): boolean
     return true
 end
 
--- Deep search for anchor BasePart across custom nested folders/submodels
 local function getModelAnchor(character: Model?): BasePart?
     if not character or not character.Parent then return nil end
     if character.PrimaryPart and character.PrimaryPart:IsDescendantOf(workspace) then
         return character.PrimaryPart
     end
 
-    -- Priority names for custom rigs
     local commonNames = { "HumanoidRootPart", "Root", "Torso", "UpperTorso", "Core", "Chest", "Main", "Head" }
     for _, name in ipairs(commonNames) do
         local part = character:FindFirstChild(name, true)
@@ -85,14 +92,13 @@ local function getModelAnchor(character: Model?): BasePart?
         end
     end
 
-    -- Fallback: Largest BasePart in the hierarchy
     local largestPart: BasePart? = nil
-    local largestVolume = 0
+    local largestVol = 0
     for _, desc in ipairs(character:GetDescendants()) do
         if desc:IsA("BasePart") and desc:IsDescendantOf(workspace) and desc.Transparency < 1 then
             local vol = desc.Size.X * desc.Size.Y * desc.Size.Z
-            if vol > largestVolume then
-                largestVolume = vol
+            if vol > largestVol then
+                largestVol = vol
                 largestPart = desc
             end
         end
@@ -101,7 +107,6 @@ local function getModelAnchor(character: Model?): BasePart?
     return largestPart or character:FindFirstChildWhichIsA("BasePart", true)
 end
 
--- Custom Bounding Box calculator fallback (safe against non-standard/skinned custom models)
 local function getCustomBoundingBox(character: Model): (CFrame, Vector3)
     local ok, cf, sz = pcall(function()
         return character:GetBoundingBox()
@@ -110,7 +115,6 @@ local function getCustomBoundingBox(character: Model): (CFrame, Vector3)
         return cf, sz
     end
 
-    -- Manual fallback if engine BoundingBox fails on custom mesh rigs
     local anchor = getModelAnchor(character)
     if anchor then
         return anchor.CFrame, anchor.Size + Vector3.new(2, 3, 2)
@@ -119,7 +123,7 @@ local function getCustomBoundingBox(character: Model): (CFrame, Vector3)
 end
 
 ---------------------------------------------------------------------
--- 2. Visual Effects Management
+-- 2. Visuals Setup & Destruction
 ---------------------------------------------------------------------
 local function cleanPlayer(player: Player)
     local data = trackedPlayers[player]
@@ -129,8 +133,7 @@ local function cleanPlayer(player: Player)
             data.DeathConn = nil
         end
         if data.Highlight then data.Highlight:Destroy() end
-        if data.Box then data.Box:Destroy() end
-        if data.BoxAdorneePart then data.BoxAdorneePart:Destroy() end
+        if data.Box2D then data.Box2D:Destroy() end
         if data.Tag then data.Tag:Destroy() end
         trackedPlayers[player] = nil
     end
@@ -153,10 +156,9 @@ local function updatePlayerVisuals(player: Player)
         data.Highlight.FillColor = activeColor
     end
 
-    if data.Box then
-        data.Box.Visible = Settings.BoxesEnabled and isVisible
-        data.Box.Color3 = activeColor
-        data.Box.SurfaceColor3 = activeColor
+    if data.Box2D and data.BoxStroke then
+        data.Box2D.Visible = Settings.BoxesEnabled and isVisible
+        data.BoxStroke.Color = activeColor
     end
 
     if data.Tag then
@@ -171,10 +173,9 @@ local function setupCharacterDisplay(player: Player, character: Model)
     if player == LocalPlayer then return end
     cleanPlayer(player)
 
-    -- Wait asynchronously for custom mesh/rig parts to replicate
     local anchor: BasePart? = nil
     local tries = 0
-    while tries < 40 do
+    while tries < 35 do
         if not character.Parent or not character:IsDescendantOf(workspace) or not isCharacterAlive(character) then
             return
         end
@@ -193,7 +194,7 @@ local function setupCharacterDisplay(player: Player, character: Model)
         isVisible = false
     end
 
-    -- 1. Native Highlight
+    -- 1. Native Silhouette Highlight
     local highlight = Instance.new("Highlight")
     highlight.Name = "HL_" .. player.Name
     highlight.Adornee = character
@@ -205,35 +206,27 @@ local function setupCharacterDisplay(player: Player, character: Model)
     highlight.Enabled = Settings.HighlightsEnabled and isVisible
     highlight.Parent = espHolder
 
-    -- 2. Box ESP (Works with custom sizes)
-    local cf, sz = getCustomBoundingBox(character)
-    local boxPart = Instance.new("Part")
-    boxPart.Name = "BoxPart_" .. player.Name
-    boxPart.Transparency = 1
-    boxPart.CanCollide = false
-    boxPart.CanTouch = false
-    boxPart.CanQuery = false
-    boxPart.Anchored = true
-    boxPart.Size = sz
-    boxPart.CFrame = cf
-    boxPart.Parent = espHolder
+    -- 2. True 2D Screen-Space Box ESP (Visible Through All Walls)
+    local boxFrame = Instance.new("Frame")
+    boxFrame.Name = "2DBox_" .. player.Name
+    boxFrame.BackgroundTransparency = 1
+    boxFrame.BorderSizePixel = 0
+    boxFrame.Visible = Settings.BoxesEnabled and isVisible
+    boxFrame.Parent = boxContainer
 
-    local selectionBox = Instance.new("SelectionBox")
-    selectionBox.Name = "Box_" .. player.Name
-    selectionBox.Adornee = boxPart
-    selectionBox.Color3 = initialColor
-    selectionBox.LineThickness = 0.03
-    selectionBox.SurfaceTransparency = 0.88
-    selectionBox.SurfaceColor3 = initialColor
-    selectionBox.Visible = Settings.BoxesEnabled and isVisible
-    selectionBox.Parent = espHolder
+    local boxStroke = Instance.new("UIStroke")
+    boxStroke.Color = initialColor
+    boxStroke.Thickness = 1.2
+    boxStroke.Transparency = 0.1
+    boxStroke.Parent = boxFrame
 
     -- 3. Compact Name & Distance Pill
+    local _, sz = getCustomBoundingBox(character)
     local billboard = Instance.new("BillboardGui")
     billboard.Name = "Tag_" .. player.Name
     billboard.Adornee = anchor
     billboard.Size = UDim2.new(0, 95, 0, 18)
-    billboard.StudsOffset = Vector3.new(0, (sz.Y * 0.5) + 1.2, 0) -- Dynamically placed above custom heights
+    billboard.StudsOffset = Vector3.new(0, (sz.Y * 0.5) + 1.2, 0)
     billboard.AlwaysOnTop = true
     billboard.ResetOnSpawn = false
     billboard.Enabled = Settings.NametagsEnabled and isVisible
@@ -268,7 +261,7 @@ local function setupCharacterDisplay(player: Player, character: Model)
 
     billboard.Parent = PlayerGui
 
-    -- Death & Cleanup hooks
+    -- Cleanup on death
     local deathConn: RBXScriptConnection? = nil
     local humanoid = character:FindFirstChildOfClass("Humanoid") or character:FindFirstChildWhichIsA("Humanoid", true)
     if humanoid then
@@ -278,15 +271,13 @@ local function setupCharacterDisplay(player: Player, character: Model)
     end
 
     character.AncestryChanged:Connect(function(_, parent)
-        if not parent then
-            cleanPlayer(player)
-        end
+        if not parent then cleanPlayer(player) end
     end)
 
     trackedPlayers[player] = {
         Highlight = highlight,
-        Box = selectionBox,
-        BoxAdorneePart = boxPart,
+        Box2D = boxFrame,
+        BoxStroke = boxStroke,
         Tag = billboard,
         Label = compactLabel,
         TargetAnchor = anchor,
@@ -296,7 +287,7 @@ local function setupCharacterDisplay(player: Player, character: Model)
 end
 
 ---------------------------------------------------------------------
--- 3. Local Player Anchor (Sync on custom death/respawn)
+-- 3. Local Player Anchor Sync
 ---------------------------------------------------------------------
 local function refreshLocalAnchor()
     local char = LocalPlayer.Character
@@ -329,18 +320,13 @@ if LocalPlayer.Character then
 end
 
 ---------------------------------------------------------------------
--- 4. Sleek Draggable HUD Controller
+-- 4. Sleek Modern Tabbed UI (Visuals / Colors / Misc)
 ---------------------------------------------------------------------
 local function buildModernUI()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "TacticalRadarHUD"
-    screenGui.ResetOnSpawn = false
-    screenGui.Parent = PlayerGui
-
     local panel = Instance.new("Frame")
     panel.Name = "ControlPanel"
-    panel.Size = UDim2.new(0, 220, 0, 320)
-    panel.Position = UDim2.new(0, 24, 0.5, -160)
+    panel.Size = UDim2.new(0, 240, 0, 260)
+    panel.Position = UDim2.new(0, 28, 0.5, -130)
     panel.BackgroundColor3 = Color3.fromRGB(14, 16, 20)
     panel.BackgroundTransparency = 0.12
     panel.BorderSizePixel = 0
@@ -353,11 +339,12 @@ local function buildModernUI()
     panelCorner.Parent = panel
 
     local panelStroke = Instance.new("UIStroke")
-    panelStroke.Color = Color3.fromRGB(40, 50, 65)
+    panelStroke.Color = Color3.fromRGB(42, 52, 68)
     panelStroke.Thickness = 1.2
     panelStroke.Transparency = 0.2
     panelStroke.Parent = panel
 
+    -- Header / Drag Bar
     local dragBar = Instance.new("Frame")
     dragBar.Name = "DragBar"
     dragBar.Size = UDim2.new(1, 0, 0, 34)
@@ -365,12 +352,12 @@ local function buildModernUI()
     dragBar.Parent = panel
 
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -60, 1, 0)
+    title.Size = UDim2.new(1, -64, 1, 0)
     title.Position = UDim2.new(0, 12, 0, 0)
     title.BackgroundTransparency = 1
     title.Font = Enum.Font.GothamBold
     title.Text = "TACTICAL RADAR"
-    title.TextColor3 = Color3.fromRGB(180, 205, 235)
+    title.TextColor3 = Color3.fromRGB(185, 210, 240)
     title.TextSize = 11
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = dragBar
@@ -390,17 +377,79 @@ local function buildModernUI()
     hintCorner.CornerRadius = UDim.new(0, 4)
     hintCorner.Parent = shortcutHint
 
-    local function createToggleButton(name: string, yPos: number, initialState: boolean, callback: (boolean) -> ())
+    -- Tabs Navigation Bar
+    local navBar = Instance.new("Frame")
+    navBar.Name = "NavBar"
+    navBar.Size = UDim2.new(1, -20, 0, 26)
+    navBar.Position = UDim2.new(0, 10, 0, 36)
+    navBar.BackgroundColor3 = Color3.fromRGB(20, 24, 30)
+    navBar.BorderSizePixel = 0
+    navBar.Parent = panel
+
+    local navCorner = Instance.new("UICorner")
+    navCorner.CornerRadius = UDim.new(0, 6)
+    navCorner.Parent = navBar
+
+    local tabButtons: { [string]: TextButton } = {}
+    local tabPages: { [string]: Frame } = {}
+
+    local tabNames = { "Visuals", "Colors", "Misc" }
+    local activeTab = "Visuals"
+
+    for i, tabName in ipairs(tabNames) do
+        local page = Instance.new("Frame")
+        page.Name = tabName .. "_Page"
+        page.Size = UDim2.new(1, -20, 1, -74)
+        page.Position = UDim2.new(0, 10, 0, 68)
+        page.BackgroundTransparency = 1
+        page.Visible = (tabName == activeTab)
+        page.Parent = panel
+        tabPages[tabName] = page
+
+        local btn = Instance.new("TextButton")
+        btn.Name = tabName .. "_TabBtn"
+        btn.Size = UDim2.new(1 / #tabNames, 0, 1, 0)
+        btn.Position = UDim2.new((i - 1) / #tabNames, 0, 0, 0)
+        btn.BackgroundTransparency = (tabName == activeTab) and 0 or 1
+        btn.BackgroundColor3 = Color3.fromRGB(30, 42, 58)
+        btn.BorderSizePixel = 0
+        btn.Font = Enum.Font.GothamBold
+        btn.Text = tabName
+        btn.TextColor3 = (tabName == activeTab) and Color3.fromRGB(0, 190, 255) or Color3.fromRGB(130, 140, 155)
+        btn.TextSize = 10
+        btn.Parent = navBar
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 5)
+        btnCorner.Parent = btn
+
+        tabButtons[tabName] = btn
+
+        btn.MouseButton1Click:Connect(function()
+            activeTab = tabName
+            for name, p in pairs(tabPages) do
+                p.Visible = (name == tabName)
+            end
+            for name, b in pairs(tabButtons) do
+                local selected = (name == tabName)
+                b.BackgroundTransparency = selected and 0 or 1
+                b.TextColor3 = selected and Color3.fromRGB(0, 190, 255) or Color3.fromRGB(130, 140, 155)
+            end
+        end)
+    end
+
+    -- Helper: Toggle Button Maker
+    local function createToggleButton(parentPage: Frame, name: string, yPos: number, initialState: boolean, callback: (boolean) -> ())
         local btn = Instance.new("TextButton")
         btn.Name = name
-        btn.Size = UDim2.new(1, -20, 0, 26)
-        btn.Position = UDim2.new(0, 10, 0, yPos)
+        btn.Size = UDim2.new(1, 0, 0, 28)
+        btn.Position = UDim2.new(0, 0, 0, yPos)
         btn.BackgroundColor3 = initialState and Color3.fromRGB(22, 38, 54) or Color3.fromRGB(22, 25, 32)
         btn.BorderSizePixel = 0
         btn.Font = Enum.Font.GothamMedium
         btn.Text = ""
         btn.AutoButtonColor = false
-        btn.Parent = panel
+        btn.Parent = parentPage
 
         local btnCorner = Instance.new("UICorner")
         btnCorner.CornerRadius = UDim.new(0, 6)
@@ -449,12 +498,13 @@ local function buildModernUI()
         end)
     end
 
-    local function createColorSlider(titleText: string, yPos: number, initialColor: Color3, onColorChanged: (Color3) -> ())
+    -- Helper: Smooth Color Slider Maker
+    local function createColorSlider(parentPage: Frame, titleText: string, yPos: number, initialColor: Color3, onColorChanged: (Color3) -> ())
         local container = Instance.new("Frame")
-        container.Size = UDim2.new(1, -20, 0, 32)
-        container.Position = UDim2.new(0, 10, 0, yPos)
+        container.Size = UDim2.new(1, 0, 0, 36)
+        container.Position = UDim2.new(0, 0, 0, yPos)
         container.BackgroundTransparency = 1
-        container.Parent = panel
+        container.Parent = parentPage
 
         local label = Instance.new("TextLabel")
         label.Size = UDim2.new(0.7, 0, 0, 12)
@@ -468,8 +518,8 @@ local function buildModernUI()
         label.Parent = container
 
         local preview = Instance.new("Frame")
-        preview.Size = UDim2.new(0, 10, 0, 10)
-        preview.Position = UDim2.new(1, -10, 0, 1)
+        preview.Size = UDim2.new(0, 12, 0, 12)
+        preview.Position = UDim2.new(1, -12, 0, 0)
         preview.BackgroundColor3 = initialColor
         preview.BorderSizePixel = 0
         preview.Parent = container
@@ -481,7 +531,7 @@ local function buildModernUI()
         local track = Instance.new("TextButton")
         track.Name = "Track"
         track.Size = UDim2.new(1, 0, 0, 8)
-        track.Position = UDim2.new(0, 0, 0, 18)
+        track.Position = UDim2.new(0, 0, 0, 20)
         track.Text = ""
         track.AutoButtonColor = false
         track.BorderSizePixel = 0
@@ -551,48 +601,57 @@ local function buildModernUI()
         end)
     end
 
-    -- Toggle Buttons Layout
-    createToggleButton("Highlights", 38, Settings.HighlightsEnabled, function(enabled)
+    -----------------------------------------------------------------
+    -- Tab 1: Visuals Controls
+    -----------------------------------------------------------------
+    createToggleButton(tabPages["Visuals"], "Highlights", 4, Settings.HighlightsEnabled, function(enabled)
         Settings.HighlightsEnabled = enabled
         for player in pairs(trackedPlayers) do updatePlayerVisuals(player) end
     end)
 
-    createToggleButton("Box ESP", 68, Settings.BoxesEnabled, function(enabled)
+    createToggleButton(tabPages["Visuals"], "2D Box ESP", 38, Settings.BoxesEnabled, function(enabled)
         Settings.BoxesEnabled = enabled
         for player in pairs(trackedPlayers) do updatePlayerVisuals(player) end
     end)
 
-    createToggleButton("Compact Tags", 98, Settings.NametagsEnabled, function(enabled)
+    createToggleButton(tabPages["Visuals"], "Compact Tags", 72, Settings.NametagsEnabled, function(enabled)
         Settings.NametagsEnabled = enabled
         for player in pairs(trackedPlayers) do updatePlayerVisuals(player) end
     end)
 
-    createToggleButton("Team Check", 128, Settings.TeamCheckEnabled, function(enabled)
-        Settings.TeamCheckEnabled = enabled
-        for player in pairs(trackedPlayers) do updatePlayerVisuals(player) end
-    end)
-
-    createToggleButton("Show Teammates", 158, Settings.ShowTeammates, function(enabled)
-        Settings.ShowTeammates = enabled
-        for player in pairs(trackedPlayers) do updatePlayerVisuals(player) end
-    end)
-
-    -- Color Sliders
-    createColorSlider("Target / Enemy Color", 196, Settings.EnemyColor, function(newColor)
+    -----------------------------------------------------------------
+    -- Tab 2: Colors Controls
+    -----------------------------------------------------------------
+    createColorSlider(tabPages["Colors"], "Target / Enemy Color", 10, Settings.EnemyColor, function(newColor)
         Settings.EnemyColor = newColor
         for player in pairs(trackedPlayers) do
             if not isTeammate(player) then updatePlayerVisuals(player) end
         end
     end)
 
-    createColorSlider("Teammate Color", 238, Settings.FriendlyColor, function(newColor)
+    createColorSlider(tabPages["Colors"], "Teammate Color", 58, Settings.FriendlyColor, function(newColor)
         Settings.FriendlyColor = newColor
         for player in pairs(trackedPlayers) do
             if isTeammate(player) then updatePlayerVisuals(player) end
         end
     end)
 
-    -- Draggable Header Logic
+    -----------------------------------------------------------------
+    -- Tab 3: Misc Controls
+    -----------------------------------------------------------------
+    createToggleButton(tabPages["Misc"], "Team Check", 4, Settings.TeamCheckEnabled, function(enabled)
+        Settings.TeamCheckEnabled = enabled
+        for player in pairs(trackedPlayers) do updatePlayerVisuals(player) end
+    end)
+
+    createToggleButton(tabPages["Misc"], "Show Teammates", 38, Settings.ShowTeammates, function(enabled)
+        Settings.ShowTeammates = enabled
+        for player in pairs(trackedPlayers) do updatePlayerVisuals(player) end
+    end)
+
+    -----------------------------------------------------------------
+    -- Draggable Panel
+    -----------------------------------------------------------------
     local isDragging = false
     local dragStartPos = Vector2.zero
     local panelStartPos = UDim2.new()
@@ -622,7 +681,9 @@ local function buildModernUI()
         end
     end)
 
-    -- Right Shift Toggle Animation
+    -----------------------------------------------------------------
+    -- Right-Shift Minimize / Restore Toggle
+    -----------------------------------------------------------------
     local uiVisible = true
     local isAnimating = false
 
@@ -636,14 +697,14 @@ local function buildModernUI()
                 panel.Visible = true
                 local openTween = TweenService:Create(panel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
                     BackgroundTransparency = 0.12,
-                    Size = UDim2.new(0, 220, 0, 320)
+                    Size = UDim2.new(0, 240, 0, 260)
                 })
                 openTween:Play()
                 openTween.Completed:Connect(function() isAnimating = false end)
             else
                 local closeTween = TweenService:Create(panel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
                     BackgroundTransparency = 1,
-                    Size = UDim2.new(0, 220, 0, 0)
+                    Size = UDim2.new(0, 240, 0, 0)
                 })
                 closeTween:Play()
                 closeTween.Completed:Connect(function()
@@ -656,19 +717,19 @@ local function buildModernUI()
 end
 
 ---------------------------------------------------------------------
--- 5. Heartbeat Watchdog, Box CFrame & Distance Loop
+-- 5. Heartbeat 2D Box Projection & Distance Loop
 ---------------------------------------------------------------------
 local lastWatchdogCheck = 0
 
 RunService.Heartbeat:Connect(function()
     local now = os.clock()
 
-    -- 1. Refresh local player anchor if missing or destroyed
+    -- 1. Refresh local anchor
     if not localAnchor or not localAnchor.Parent or not localAnchor:IsDescendantOf(workspace) then
         refreshLocalAnchor()
     end
 
-    -- 2. Periodic recovery check: handles late custom model replication
+    -- 2. Periodic recovery check for late-spawning custom characters
     if now - lastWatchdogCheck > 0.4 then
         lastWatchdogCheck = now
         for _, player in ipairs(Players:GetPlayers()) do
@@ -688,14 +749,54 @@ RunService.Heartbeat:Connect(function()
         end
     end
 
-    -- 3. Live 3D Box CFrame sync & distance tag formatting
+    -- 3. Live 2D Box projection & distance tags
     for player, data in pairs(trackedPlayers) do
-        if data.CharModel and data.CharModel.Parent and data.BoxAdorneePart then
+        local teammate = isTeammate(player)
+        local isAllowed = Settings.BoxesEnabled and (not Settings.TeamCheckEnabled or Settings.ShowTeammates or not teammate)
+
+        if data.Box2D and isAllowed and data.CharModel and data.CharModel.Parent then
             local cf, sz = getCustomBoundingBox(data.CharModel)
-            data.BoxAdorneePart.CFrame = cf
-            data.BoxAdorneePart.Size = sz
+            local half = sz * 0.5
+
+            -- 8 bounding box corners in world space
+            local corners = {
+                cf:PointToWorldSpace(Vector3.new(-half.X,  half.Y, -half.Z)),
+                cf:PointToWorldSpace(Vector3.new( half.X,  half.Y, -half.Z)),
+                cf:PointToWorldSpace(Vector3.new(-half.X, -half.Y, -half.Z)),
+                cf:PointToWorldSpace(Vector3.new( half.X, -half.Y, -half.Z)),
+                cf:PointToWorldSpace(Vector3.new(-half.X,  half.Y,  half.Z)),
+                cf:PointToWorldSpace(Vector3.new( half.X,  half.Y,  half.Z)),
+                cf:PointToWorldSpace(Vector3.new(-half.X, -half.Y,  half.Z)),
+                cf:PointToWorldSpace(Vector3.new( half.X, -half.Y,  half.Z)),
+            }
+
+            local minX, minY = math.huge, math.huge
+            local maxX, maxY = -math.huge, -math.huge
+            local anyOnScreen = false
+
+            for _, corner in ipairs(corners) do
+                local screenPos, onScreen = Camera:WorldToViewportPoint(corner)
+                if screenPos.Z > 0 then
+                    anyOnScreen = true
+                    if screenPos.X < minX then minX = screenPos.X end
+                    if screenPos.X > maxX then maxX = screenPos.X end
+                    if screenPos.Y < minY then minY = screenPos.Y end
+                    if screenPos.Y > maxY then maxY = screenPos.Y end
+                end
+            end
+
+            if anyOnScreen and minX < math.huge then
+                data.Box2D.Visible = true
+                data.Box2D.Position = UDim2.new(0, minX, 0, minY)
+                data.Box2D.Size = UDim2.new(0, math.max(6, maxX - minX), 0, math.max(6, maxY - minY))
+            else
+                data.Box2D.Visible = false
+            end
+        elseif data.Box2D then
+            data.Box2D.Visible = false
         end
 
+        -- Update compact distance tags
         if data.Label and data.TargetAnchor and data.TargetAnchor.Parent then
             if localAnchor and localAnchor.Parent then
                 local dist = (localAnchor.Position - data.TargetAnchor.Position).Magnitude
@@ -744,5 +845,5 @@ LocalPlayer:GetPropertyChangedSignal("Team"):Connect(function()
     end
 end)
 
--- Initialize HUD
+-- Initialize Modern Tabbed UI
 buildModernUI()
