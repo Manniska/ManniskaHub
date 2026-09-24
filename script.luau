@@ -37,6 +37,7 @@ type TrackedData = {
     DeathConn: RBXScriptConnection?,
 }
 
+local isRunning = true
 local trackedPlayers: { [Player]: TrackedData } = {}
 local localAnchor: BasePart? = nil
 
@@ -51,12 +52,9 @@ local boxContainer = Instance.new("Folder")
 boxContainer.Name = "2D_Boxes"
 boxContainer.Parent = screenGui
 
-local espHolder = Camera:FindFirstChild("ESPHolder") :: Folder?
-if not espHolder then
-    espHolder = Instance.new("Folder")
-    espHolder.Name = "ESPHolder"
-    espHolder.Parent = Camera
-end
+local highlightHolder = Instance.new("Folder")
+highlightHolder.Name = "HighlightHolder"
+highlightHolder.Parent = screenGui
 
 ---------------------------------------------------------------------
 -- 1. Custom Character Compatibility Resolvers
@@ -204,7 +202,7 @@ local function setupCharacterDisplay(player: Player, character: Model)
     highlight.OutlineTransparency = Settings.OutlineTransparency
     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     highlight.Enabled = Settings.HighlightsEnabled and isVisible
-    highlight.Parent = espHolder
+    highlight.Parent = highlightHolder
 
     -- 2. True 2D Screen-Space Box ESP (Visible Through All Walls)
     local boxFrame = Instance.new("Frame")
@@ -393,7 +391,7 @@ local function buildModernUI()
     local tabButtons: { [string]: TextButton } = {}
     local tabPages: { [string]: Frame } = {}
 
-    local tabNames = { "Visuals", "Colors", "Misc" }
+    local tabNames = { "Visuals", "Colors", "Misc", "Settings" }
     local activeTab = "Visuals"
 
     for i, tabName in ipairs(tabNames) do
@@ -498,7 +496,93 @@ local function buildModernUI()
         end)
     end
 
-    -- Helper: Smooth Color Slider Maker
+    -- Helper: Keybind Binder Maker
+    local function createKeybindButton(parentPage: Frame, titleText: string, yPos: number, currentKey: Enum.KeyCode, onKeyChanged: (Enum.KeyCode) -> ())
+        local container = Instance.new("Frame")
+        container.Size = UDim2.new(1, 0, 0, 32)
+        container.Position = UDim2.new(0, 0, 0, yPos)
+        container.BackgroundTransparency = 1
+        container.Parent = parentPage
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.5, 0, 1, 0)
+        label.Position = UDim2.new(0, 0, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Font = Enum.Font.GothamBold
+        label.Text = titleText
+        label.TextColor3 = Color3.fromRGB(215, 220, 230)
+        label.TextSize = 10
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = container
+
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.45, 0, 1, 0)
+        btn.Position = UDim2.new(0.55, 0, 0, 0)
+        btn.BackgroundColor3 = Color3.fromRGB(22, 28, 38)
+        btn.BorderSizePixel = 0
+        btn.Font = Enum.Font.GothamBold
+        btn.Text = currentKey.Name
+        btn.TextColor3 = Color3.fromRGB(0, 190, 255)
+        btn.TextSize = 9
+        btn.AutoButtonColor = false
+        btn.Parent = container
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 6)
+        btnCorner.Parent = btn
+
+        local btnStroke = Instance.new("UIStroke")
+        btnStroke.Color = Color3.fromRGB(45, 55, 70)
+        btnStroke.Thickness = 1
+        btnStroke.Parent = btn
+
+        local listening = false
+        btn.MouseButton1Click:Connect(function()
+            if listening then return end
+            listening = true
+            btn.Text = "..."
+            btn.TextColor3 = Color3.fromRGB(255, 200, 0)
+
+            local conn
+            conn = UserInputService.InputBegan:Connect(function(input, gp)
+                if input.UserInputType == Enum.UserInputType.Keyboard then
+                    local newKey = input.KeyCode
+                    onKeyChanged(newKey)
+                    btn.Text = newKey.Name
+                    btn.TextColor3 = Color3.fromRGB(0, 190, 255)
+                    listening = false
+                    conn:Disconnect()
+                end
+            end)
+        end)
+    end
+
+    -- Helper: Action Button Maker (for Terminate Script)
+    local function createActionButton(parentPage: Frame, titleText: string, yPos: number, buttonColor: Color3, callback: () -> ())
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, 0, 0, 32)
+        btn.Position = UDim2.new(0, 0, 0, yPos)
+        btn.BackgroundColor3 = buttonColor
+        btn.BorderSizePixel = 0
+        btn.Font = Enum.Font.GothamBold
+        btn.Text = titleText
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.TextSize = 10
+        btn.AutoButtonColor = false
+        btn.Parent = parentPage
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 6)
+        btnCorner.Parent = btn
+
+        local btnStroke = Instance.new("UIStroke")
+        btnStroke.Color = Color3.fromRGB(255, 255, 255)
+        btnStroke.Transparency = 0.7
+        btnStroke.Thickness = 1
+        btnStroke.Parent = btn
+
+        btn.MouseButton1Click:Connect(callback)
+    end
     local function createColorSlider(parentPage: Frame, titleText: string, yPos: number, initialColor: Color3, onColorChanged: (Color3) -> ())
         local container = Instance.new("Frame")
         container.Size = UDim2.new(1, 0, 0, 36)
@@ -650,8 +734,22 @@ local function buildModernUI()
     end)
 
     -----------------------------------------------------------------
-    -- Draggable Panel
+    -- Tab 4: Settings Controls
     -----------------------------------------------------------------
+    createKeybindButton(tabPages["Settings"], "Minimize Key", 4, Settings.ToggleKey, function(newKey)
+        Settings.ToggleKey = newKey
+        shortcutHint.Text = newKey.Name
+    end)
+
+    createActionButton(tabPages["Settings"], "Terminate Script", 42, Color3.fromRGB(180, 40, 40), function()
+        isRunning = false
+        for player in pairs(trackedPlayers) do
+            cleanPlayer(player)
+        end
+        if screenGui then
+            screenGui:Destroy()
+        end
+    end)
     local isDragging = false
     local dragStartPos = Vector2.zero
     local panelStartPos = UDim2.new()
@@ -721,7 +819,12 @@ end
 ---------------------------------------------------------------------
 local lastWatchdogCheck = 0
 
-RunService.Heartbeat:Connect(function()
+local heartbeatConn
+heartbeatConn = RunService.Heartbeat:Connect(function()
+    if not isRunning then
+        heartbeatConn:Disconnect()
+        return
+    end
     local now = os.clock()
 
     -- 1. Refresh local anchor
