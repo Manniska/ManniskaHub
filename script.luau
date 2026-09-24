@@ -1,6 +1,3 @@
---!strict
--- Place this LocalScript in StarterPlayer.StarterPlayerScripts
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -24,6 +21,18 @@ local Settings = {
     FillTransparency = 0.55,
     OutlineTransparency = 0.1,
     ToggleKey = Enum.KeyCode.RightShift,
+    -- Aim Assist Settings
+    AimAssistEnabled = false,
+    AimAssistFOV = 150,
+    AimAssistSmoothness = 0.15,
+    AimAssistBone = "Head",       -- "Head", "Chest", "Neck"
+    AimAssistKey = Enum.KeyCode.RightControl,
+    -- Silent Aim Settings
+    SilentAimEnabled = false,
+    SilentAimFOV = 150,
+    SilentAimSmoothness = 0.2,
+    SilentAimBone = "Head",
+    SilentAimKey = Enum.KeyCode.RightControl,
 }
 
 type TrackedData = {
@@ -56,6 +65,28 @@ local highlightHolder = Instance.new("Folder")
 highlightHolder.Name = "HighlightHolder"
 highlightHolder.Parent = screenGui
 
+-- FOV Circle for Aim Assist
+local fovCircle = Instance.new("Frame")
+fovCircle.Name = "FOV_Circle"
+fovCircle.Size = UDim2.new(0, 0, 0, 0)
+fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
+fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+fovCircle.BackgroundColor3 = Color3.fromRGB(0, 190, 255)
+fovCircle.BackgroundTransparency = 0.85
+fovCircle.BorderSizePixel = 2
+fovCircle.BorderColor3 = Color3.fromRGB(0, 190, 255)
+fovCircle.Parent = screenGui
+
+local fovCorner = Instance.new("UICorner")
+fovCorner.CornerRadius = UDim.new(0.5, 0)
+fovCorner.Parent = fovCircle
+
+local fovStroke = Instance.new("UIStroke")
+fovStroke.Color = Color3.fromRGB(0, 190, 255)
+fovStroke.Thickness = 2
+fovStroke.Transparency = 0.3
+fovStroke.Parent = fovCircle
+
 ---------------------------------------------------------------------
 -- 1. Custom Character Compatibility Resolvers
 ---------------------------------------------------------------------
@@ -63,16 +94,9 @@ local function isTeammate(player: Player): boolean
     if not Settings.TeamCheckEnabled then return false end
     if player == LocalPlayer then return true end
     
-    -- Check Team object equality
+    -- Strict Team Object Check (most reliable across Roblox games)
     if player.Team and LocalPlayer.Team then
         if player.Team == LocalPlayer.Team then
-            return true
-        end
-    end
-    
-    -- Check TeamColor if set
-    if player.TeamColor and LocalPlayer.TeamColor then
-        if player.TeamColor == LocalPlayer.TeamColor and player.TeamColor ~= BrickColor.new("Medium stone grey") then
             return true
         end
     end
@@ -338,82 +362,86 @@ end
 local function buildModernUI()
     local panel = Instance.new("Frame")
     panel.Name = "ControlPanel"
-    panel.Size = UDim2.new(0, 240, 0, 260)
-    panel.Position = UDim2.new(0, 28, 0.5, -130)
-    panel.BackgroundColor3 = Color3.fromRGB(14, 16, 20)
-    panel.BackgroundTransparency = 0.12
+    panel.Size = UDim2.new(0, 640, 0, 480)
+    panel.Position = UDim2.new(0.5, -320, 0.5, -240)
+    panel.BackgroundColor3 = Color3.fromRGB(18, 20, 24)
+    panel.BackgroundTransparency = 0.05
     panel.BorderSizePixel = 0
     panel.Active = true
     panel.ClipsDescendants = true
     panel.Parent = screenGui
 
     local panelCorner = Instance.new("UICorner")
-    panelCorner.CornerRadius = UDim.new(0, 10)
+    panelCorner.CornerRadius = UDim.new(0, 12)
     panelCorner.Parent = panel
 
     local panelStroke = Instance.new("UIStroke")
-    panelStroke.Color = Color3.fromRGB(42, 52, 68)
-    panelStroke.Thickness = 1.2
-    panelStroke.Transparency = 0.2
+    panelStroke.Color = Color3.fromRGB(50, 60, 75)
+    panelStroke.Thickness = 1.5
+    panelStroke.Transparency = 0.15
     panelStroke.Parent = panel
 
     -- Header / Drag Bar
     local dragBar = Instance.new("Frame")
     dragBar.Name = "DragBar"
-    dragBar.Size = UDim2.new(1, 0, 0, 34)
-    dragBar.BackgroundTransparency = 1
+    dragBar.Size = UDim2.new(1, 0, 0, 40)
+    dragBar.BackgroundColor3 = Color3.fromRGB(22, 25, 30)\n    dragBar.BorderSizePixel = 0
     dragBar.Parent = panel
 
+    local dragBarCorner = Instance.new("UICorner")
+    dragBarCorner.CornerRadius = UDim.new(0, 12)
+    dragBarCorner.CornerRadius = UDim.new(0, 0)
+    dragBarCorner.Parent = dragBar
+
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -64, 1, 0)
-    title.Position = UDim2.new(0, 12, 0, 0)
+    title.Size = UDim2.new(1, -100, 1, 0)
+    title.Position = UDim2.new(0, 16, 0, 0)
     title.BackgroundTransparency = 1
     title.Font = Enum.Font.GothamBold
     title.Text = "TACTICAL RADAR"
-    title.TextColor3 = Color3.fromRGB(185, 210, 240)
-    title.TextSize = 11
+    title.TextColor3 = Color3.fromRGB(200, 220, 245)
+    title.TextSize = 14
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = dragBar
 
     local shortcutHint = Instance.new("TextLabel")
-    shortcutHint.Size = UDim2.new(0, 48, 0, 16)
-    shortcutHint.Position = UDim2.new(1, -58, 0.5, -8)
-    shortcutHint.BackgroundColor3 = Color3.fromRGB(24, 28, 38)
+    shortcutHint.Size = UDim2.new(0, 60, 0, 20)
+    shortcutHint.Position = UDim2.new(1, -76, 0.5, -10)
+    shortcutHint.BackgroundColor3 = Color3.fromRGB(28, 32, 40)
     shortcutHint.BorderSizePixel = 0
     shortcutHint.Font = Enum.Font.GothamBold
     shortcutHint.Text = "R-SHIFT"
-    shortcutHint.TextColor3 = Color3.fromRGB(120, 135, 160)
-    shortcutHint.TextSize = 8
+    shortcutHint.TextColor3 = Color3.fromRGB(140, 160, 185)
+    shortcutHint.TextSize = 9
     shortcutHint.Parent = dragBar
 
     local hintCorner = Instance.new("UICorner")
-    hintCorner.CornerRadius = UDim.new(0, 4)
+    hintCorner.CornerRadius = UDim.new(0, 5)
     hintCorner.Parent = shortcutHint
 
     -- Tabs Navigation Bar
     local navBar = Instance.new("Frame")
     navBar.Name = "NavBar"
-    navBar.Size = UDim2.new(1, -20, 0, 26)
-    navBar.Position = UDim2.new(0, 10, 0, 36)
-    navBar.BackgroundColor3 = Color3.fromRGB(20, 24, 30)
-    navBar.BorderSizePixel = 0
+    navBar.Size = UDim2.new(1, -24, 0, 32)
+    navBar.Position = UDim2.new(0, 12, 0, 48)
+    navBar.BackgroundColor3 = Color3.fromRGB(24, 28, 35)\n    navBar.BorderSizePixel = 0
     navBar.Parent = panel
 
     local navCorner = Instance.new("UICorner")
-    navCorner.CornerRadius = UDim.new(0, 6)
+    navCorner.CornerRadius = UDim.new(0, 8)
     navCorner.Parent = navBar
 
     local tabButtons: { [string]: TextButton } = {}
     local tabPages: { [string]: Frame } = {}
 
-    local tabNames = { "Visuals", "Colors", "Misc", "Settings" }
+    local tabNames = { "Visuals", "Colors", "Aim Assist", "Misc", "Settings" }
     local activeTab = "Visuals"
 
     for i, tabName in ipairs(tabNames) do
         local page = Instance.new("Frame")
         page.Name = tabName .. "_Page"
-        page.Size = UDim2.new(1, -20, 1, -74)
-        page.Position = UDim2.new(0, 10, 0, 68)
+        page.Size = UDim2.new(1, -24, 1, -80)
+        page.Position = UDim2.new(0, 12, 0, 88)
         page.BackgroundTransparency = 1
         page.Visible = (tabName == activeTab)
         page.Parent = panel
@@ -424,16 +452,16 @@ local function buildModernUI()
         btn.Size = UDim2.new(1 / #tabNames, 0, 1, 0)
         btn.Position = UDim2.new((i - 1) / #tabNames, 0, 0, 0)
         btn.BackgroundTransparency = (tabName == activeTab) and 0 or 1
-        btn.BackgroundColor3 = Color3.fromRGB(30, 42, 58)
+        btn.BackgroundColor3 = (tabName == activeTab) and Color3.fromRGB(0, 160, 255) or Color3.fromRGB(28, 32, 40)
         btn.BorderSizePixel = 0
         btn.Font = Enum.Font.GothamBold
         btn.Text = tabName
-        btn.TextColor3 = (tabName == activeTab) and Color3.fromRGB(0, 190, 255) or Color3.fromRGB(130, 140, 155)
-        btn.TextSize = 10
+        btn.TextColor3 = (tabName == activeTab) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(140, 155, 175)
+        btn.TextSize = 11
         btn.Parent = navBar
 
         local btnCorner = Instance.new("UICorner")
-        btnCorner.CornerRadius = UDim.new(0, 5)
+        btnCorner.CornerRadius = UDim.new(0, 6)
         btnCorner.Parent = btn
 
         tabButtons[tabName] = btn
@@ -446,52 +474,58 @@ local function buildModernUI()
             for name, b in pairs(tabButtons) do
                 local selected = (name == tabName)
                 b.BackgroundTransparency = selected and 0 or 1
-                b.TextColor3 = selected and Color3.fromRGB(0, 190, 255) or Color3.fromRGB(130, 140, 155)
+                b.BackgroundColor3 = selected and Color3.fromRGB(0, 160, 255) or Color3.fromRGB(28, 32, 40)
+                b.TextColor3 = selected and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(140, 155, 175)
             end
         end)
     end
 
     -- Helper: Toggle Button Maker
     local function createToggleButton(parentPage: Frame, name: string, yPos: number, initialState: boolean, callback: (boolean) -> ())
+        local container = Instance.new("Frame")
+        container.Size = UDim2.new(1, 0, 0, 36)
+        container.Position = UDim2.new(0, 0, 0, yPos)
+        container.BackgroundTransparency = 1
+        container.Parent = parentPage
+
         local btn = Instance.new("TextButton")
         btn.Name = name
-        btn.Size = UDim2.new(1, 0, 0, 28)
-        btn.Position = UDim2.new(0, 0, 0, yPos)
-        btn.BackgroundColor3 = initialState and Color3.fromRGB(22, 38, 54) or Color3.fromRGB(22, 25, 32)
+        btn.Size = UDim2.new(1, 0, 1, 0)
+        btn.BackgroundColor3 = initialState and Color3.fromRGB(25, 35, 48) or Color3.fromRGB(22, 25, 32)
         btn.BorderSizePixel = 0
         btn.Font = Enum.Font.GothamMedium
         btn.Text = ""
         btn.AutoButtonColor = false
-        btn.Parent = parentPage
+        btn.Parent = container
 
         local btnCorner = Instance.new("UICorner")
-        btnCorner.CornerRadius = UDim.new(0, 6)
+        btnCorner.CornerRadius = UDim.new(0, 8)
         btnCorner.Parent = btn
 
         local btnStroke = Instance.new("UIStroke")
-        btnStroke.Color = initialState and Color3.fromRGB(0, 160, 255) or Color3.fromRGB(45, 50, 60)
-        btnStroke.Thickness = 1
+        btnStroke.Color = initialState and Color3.fromRGB(0, 160, 255) or Color3.fromRGB(40, 48, 60)
+        btnStroke.Thickness = 1.5
         btnStroke.Parent = btn
 
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0.65, 0, 1, 0)
-        label.Position = UDim2.new(0, 10, 0, 0)
+        label.Size = UDim2.new(0.5, 0, 1, 0)
+        label.Position = UDim2.new(0, 16, 0, 0)
         label.BackgroundTransparency = 1
         label.Font = Enum.Font.GothamBold
         label.Text = name
-        label.TextColor3 = Color3.fromRGB(215, 220, 230)
-        label.TextSize = 10
+        label.TextColor3 = Color3.fromRGB(220, 225, 235)
+        label.TextSize = 11
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = btn
 
         local status = Instance.new("TextLabel")
-        status.Size = UDim2.new(0.3, -10, 1, 0)
+        status.Size = UDim2.new(0.3, -16, 1, 0)
         status.Position = UDim2.new(0.7, 0, 0, 0)
         status.BackgroundTransparency = 1
         status.Font = Enum.Font.GothamBold
         status.Text = initialState and "ON" or "OFF"
-        status.TextColor3 = initialState and Color3.fromRGB(0, 190, 255) or Color3.fromRGB(120, 125, 135)
-        status.TextSize = 9
+        status.TextColor3 = initialState and Color3.fromRGB(0, 190, 255) or Color3.fromRGB(130, 140, 155)
+        status.TextSize = 10
         status.TextXAlignment = Enum.TextXAlignment.Right
         status.Parent = btn
 
@@ -500,9 +534,9 @@ local function buildModernUI()
             state = not state
             callback(state)
 
-            local targetBg = state and Color3.fromRGB(22, 38, 54) or Color3.fromRGB(22, 25, 32)
-            local targetStroke = state and Color3.fromRGB(0, 160, 255) or Color3.fromRGB(45, 50, 60)
-            local targetText = state and Color3.fromRGB(0, 190, 255) or Color3.fromRGB(120, 125, 135)
+            local targetBg = state and Color3.fromRGB(25, 35, 48) or Color3.fromRGB(22, 25, 32)
+            local targetStroke = state and Color3.fromRGB(0, 160, 255) or Color3.fromRGB(40, 48, 60)
+            local targetText = state and Color3.fromRGB(0, 190, 255) or Color3.fromRGB(130, 140, 155)
 
             TweenService:Create(btn, TweenInfo.new(0.2), { BackgroundColor3 = targetBg }):Play()
             TweenService:Create(btnStroke, TweenInfo.new(0.2), { Color = targetStroke }):Play()
@@ -514,31 +548,31 @@ local function buildModernUI()
     -- Helper: Keybind Binder Maker
     local function createKeybindButton(parentPage: Frame, titleText: string, yPos: number, currentKey: Enum.KeyCode, onKeyChanged: (Enum.KeyCode) -> ())
         local container = Instance.new("Frame")
-        container.Size = UDim2.new(1, 0, 0, 32)
+        container.Size = UDim2.new(1, 0, 0, 40)
         container.Position = UDim2.new(0, 0, 0, yPos)
         container.BackgroundTransparency = 1
         container.Parent = parentPage
 
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0.5, 0, 1, 0)
-        label.Position = UDim2.new(0, 0, 0, 0)
+        label.Size = UDim2.new(0.45, 0, 1, 0)
+        label.Position = UDim2.new(0, 16, 0, 0)
         label.BackgroundTransparency = 1
         label.Font = Enum.Font.GothamBold
         label.Text = titleText
-        label.TextColor3 = Color3.fromRGB(215, 220, 230)
-        label.TextSize = 10
+        label.TextColor3 = Color3.fromRGB(180, 195, 215)
+        label.TextSize = 11
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = container
 
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(0.45, 0, 1, 0)
         btn.Position = UDim2.new(0.55, 0, 0, 0)
-        btn.BackgroundColor3 = Color3.fromRGB(22, 28, 38)
+        btn.BackgroundColor3 = Color3.fromRGB(25, 30, 40)
         btn.BorderSizePixel = 0
         btn.Font = Enum.Font.GothamBold
         btn.Text = currentKey.Name
         btn.TextColor3 = Color3.fromRGB(0, 190, 255)
-        btn.TextSize = 9
+        btn.TextSize = 10
         btn.AutoButtonColor = false
         btn.Parent = container
 
@@ -547,8 +581,8 @@ local function buildModernUI()
         btnCorner.Parent = btn
 
         local btnStroke = Instance.new("UIStroke")
-        btnStroke.Color = Color3.fromRGB(45, 55, 70)
-        btnStroke.Thickness = 1
+        btnStroke.Color = Color3.fromRGB(50, 65, 85)
+        btnStroke.Thickness = 1.5
         btnStroke.Parent = btn
 
         local listening = false
@@ -575,50 +609,50 @@ local function buildModernUI()
     -- Helper: Action Button Maker (for Terminate Script)
     local function createActionButton(parentPage: Frame, titleText: string, yPos: number, buttonColor: Color3, callback: () -> ())
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, 0, 0, 32)
+        btn.Size = UDim2.new(1, 0, 0, 36)
         btn.Position = UDim2.new(0, 0, 0, yPos)
         btn.BackgroundColor3 = buttonColor
         btn.BorderSizePixel = 0
         btn.Font = Enum.Font.GothamBold
         btn.Text = titleText
         btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.TextSize = 10
+        btn.TextSize = 11
         btn.AutoButtonColor = false
         btn.Parent = parentPage
 
         local btnCorner = Instance.new("UICorner")
-        btnCorner.CornerRadius = UDim.new(0, 6)
+        btnCorner.CornerRadius = UDim.new(0, 8)
         btnCorner.Parent = btn
 
         local btnStroke = Instance.new("UIStroke")
         btnStroke.Color = Color3.fromRGB(255, 255, 255)
-        btnStroke.Transparency = 0.7
-        btnStroke.Thickness = 1
+        btnStroke.Transparency = 0.6
+        btnStroke.Thickness = 1.5
         btnStroke.Parent = btn
 
         btn.MouseButton1Click:Connect(callback)
     end
     local function createColorSlider(parentPage: Frame, titleText: string, yPos: number, initialColor: Color3, onColorChanged: (Color3) -> ())
         local container = Instance.new("Frame")
-        container.Size = UDim2.new(1, 0, 0, 36)
+        container.Size = UDim2.new(1, 0, 0, 44)
         container.Position = UDim2.new(0, 0, 0, yPos)
         container.BackgroundTransparency = 1
         container.Parent = parentPage
 
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0.7, 0, 0, 12)
-        label.Position = UDim2.new(0, 0, 0, 0)
+        label.Size = UDim2.new(0.65, 0, 0, 14)
+        label.Position = UDim2.new(0, 16, 0, 0)
         label.BackgroundTransparency = 1
         label.Font = Enum.Font.GothamBold
         label.Text = titleText
-        label.TextColor3 = Color3.fromRGB(160, 175, 195)
-        label.TextSize = 9
+        label.TextColor3 = Color3.fromRGB(170, 185, 205)
+        label.TextSize = 10
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = container
 
         local preview = Instance.new("Frame")
-        preview.Size = UDim2.new(0, 12, 0, 12)
-        preview.Position = UDim2.new(1, -12, 0, 0)
+        preview.Size = UDim2.new(0, 14, 0, 14)
+        preview.Position = UDim2.new(1, -18, 0, 0)
         preview.BackgroundColor3 = initialColor
         preview.BorderSizePixel = 0
         preview.Parent = container
@@ -629,8 +663,8 @@ local function buildModernUI()
 
         local track = Instance.new("TextButton")
         track.Name = "Track"
-        track.Size = UDim2.new(1, 0, 0, 8)
-        track.Position = UDim2.new(0, 0, 0, 20)
+        track.Size = UDim2.new(1, -32, 0, 8)
+        track.Position = UDim2.new(0, 16, 0, 20)
         track.Text = ""
         track.AutoButtonColor = false
         track.BorderSizePixel = 0
@@ -654,7 +688,7 @@ local function buildModernUI()
         gradient.Parent = track
 
         local knob = Instance.new("Frame")
-        knob.Size = UDim2.new(0, 12, 0, 12)
+        knob.Size = UDim2.new(0, 14, 0, 14)
         knob.AnchorPoint = Vector2.new(0.5, 0.5)
         local initialHue, _, _ = initialColor:ToHSV()
         knob.Position = UDim2.new(initialHue, 0, 0.5, 0)
@@ -668,7 +702,7 @@ local function buildModernUI()
 
         local knobStroke = Instance.new("UIStroke")
         knobStroke.Color = Color3.fromRGB(20, 20, 20)
-        knobStroke.Thickness = 1.2
+        knobStroke.Thickness = 1.5
         knobStroke.Parent = knob
 
         local isSliding = false
@@ -765,6 +799,192 @@ local function buildModernUI()
             screenGui:Destroy()
         end
     end)
+
+    -----------------------------------------------------------------
+    -- Tab 3: Aim Assist Controls
+    -----------------------------------------------------------------
+    createToggleButton(tabPages["Aim Assist"], "Enable Aim Assist", 4, Settings.AimAssistEnabled, function(enabled)
+        Settings.AimAssistEnabled = enabled
+    end)
+
+    createToggleButton(tabPages["Aim Assist"], "Enable Silent Aim", 38, Settings.SilentAimEnabled, function(enabled)
+        Settings.SilentAimEnabled = enabled
+    end)
+
+    -- FOV Slider
+    local function createSlider(parentPage: Frame, titleText: string, yPos: number, initialValue: number, minValue: number, maxValue: number, unit: string, onValueChanged: (number) -> ())
+        local container = Instance.new("Frame")
+        container.Size = UDim2.new(1, 0, 0, 48)
+        container.Position = UDim2.new(0, 0, 0, yPos)
+        container.BackgroundTransparency = 1
+        container.Parent = parentPage
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.45, 0, 0, 14)
+        label.Position = UDim2.new(0, 16, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Font = Enum.Font.GothamBold
+        label.Text = titleText
+        label.TextColor3 = Color3.fromRGB(170, 185, 205)
+        label.TextSize = 10
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = container
+
+        local valueLabel = Instance.new("TextLabel")
+        valueLabel.Size = UDim2.new(0.3, 0, 0, 14)
+        valueLabel.Position = UDim2.new(0.7, 0, 0, 0)
+        valueLabel.BackgroundTransparency = 1
+        valueLabel.Font = Enum.Font.GothamBold
+        valueLabel.Text = initialValue .. unit
+        valueLabel.TextColor3 = Color3.fromRGB(0, 190, 255)
+        valueLabel.TextSize = 10
+        valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+        valueLabel.Parent = container
+
+        local track = Instance.new("TextButton")
+        track.Size = UDim2.new(1, -32, 0, 8)
+        track.Position = UDim2.new(0, 16, 0, 24)
+        track.Text = ""
+        track.AutoButtonColor = false
+        track.BorderSizePixel = 0
+        track.BackgroundColor3 = Color3.fromRGB(30, 42, 58)
+        track.Parent = container
+
+        local trackCorner = Instance.new("UICorner")
+        trackCorner.CornerRadius = UDim.new(1, 0)
+        trackCorner.Parent = track
+
+        local knob = Instance.new("Frame")
+        knob.Size = UDim2.new(0, 14, 0, 14)
+        knob.AnchorPoint = Vector2.new(0.5, 0.5)
+        local initialPos = (initialValue - minValue) / (maxValue - minValue)
+        knob.Position = UDim2.new(initialPos, 0, 0.5, 0)
+        knob.BackgroundColor3 = Color3.fromRGB(0, 190, 255)
+        knob.BorderSizePixel = 0
+        knob.Parent = track
+
+        local knobCorner = Instance.new("UICorner")
+        knobCorner.CornerRadius = UDim.new(1, 0)
+        knobCorner.Parent = knob
+
+        local knobStroke = Instance.new("UIStroke")
+        knobStroke.Color = Color3.fromRGB(20, 20, 20)
+        knobStroke.Thickness = 1.5
+        knobStroke.Parent = knob
+
+        local isSliding = false
+        local function updateValueFromInput(inputX: number)
+            local relX = math.clamp((inputX - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+            knob.Position = UDim2.new(relX, 0, 0.5, 0)
+            local newValue = math.floor(minValue + relX * (maxValue - minValue))
+            valueLabel.Text = newValue .. unit
+            onValueChanged(newValue)
+        end
+
+        track.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                isSliding = true
+                updateValueFromInput(input.Position.X)
+            end
+        end)
+
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                isSliding = false
+            end
+        end)
+
+        UserInputService.InputChanged:Connect(function(input)
+            if isSliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                updateValueFromInput(input.Position.X)
+            end
+        end)
+    end
+
+    createSlider(tabPages["Aim Assist"], "FOV Radius", 38, Settings.AimAssistFOV, 50, 300, "", function(value)
+        Settings.AimAssistFOV = value
+    end)
+
+    createSlider(tabPages["Aim Assist"], "Smoothness", 82, math.floor(Settings.AimAssistSmoothness * 100), 1, 100, "%", function(value)
+        Settings.AimAssistSmoothness = value / 100
+    end)
+
+    -- Bone Target Selector
+    local function createBoneSelector(parentPage: Frame, titleText: string, yPos: number, currentBone: string, bones: {string}, onBoneChanged: (string) -> ())
+        local container = Instance.new("Frame")
+        container.Size = UDim2.new(1, 0, 0, 40)
+        container.Position = UDim2.new(0, 0, 0, yPos)
+        container.BackgroundTransparency = 1
+        container.Parent = parentPage
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.45, 0, 1, 0)
+        label.Position = UDim2.new(0, 16, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Font = Enum.Font.GothamBold
+        label.Text = titleText
+        label.TextColor3 = Color3.fromRGB(180, 195, 215)
+        label.TextSize = 11
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = container
+
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.45, 0, 1, 0)
+        btn.Position = UDim2.new(0.55, 0, 0, 0)
+        btn.BackgroundColor3 = Color3.fromRGB(25, 30, 40)
+        btn.BorderSizePixel = 0
+        btn.Font = Enum.Font.GothamBold
+        btn.Text = currentBone
+        btn.TextColor3 = Color3.fromRGB(0, 190, 255)
+        btn.TextSize = 10
+        btn.AutoButtonColor = false
+        btn.Parent = container
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 6)
+        btnCorner.Parent = btn
+
+        local btnStroke = Instance.new("UIStroke")
+        btnStroke.Color = Color3.fromRGB(50, 65, 85)
+        btnStroke.Thickness = 1.5
+        btnStroke.Parent = btn
+
+        local currentIndex = table.find(bones, currentBone) or 1
+        btn.MouseButton1Click:Connect(function()
+            currentIndex = (currentIndex % #bones) + 1
+            local newBone = bones[currentIndex]
+            btn.Text = newBone
+            onBoneChanged(newBone)
+        end)
+    end
+
+    createBoneSelector(tabPages["Aim Assist"], "Target Bone", 126, Settings.AimAssistBone, {"Head", "Neck", "Chest"}, function(bone)
+        Settings.AimAssistBone = bone
+    end)
+
+    createKeybindButton(tabPages["Aim Assist"], "Aim Key", 160, Settings.AimAssistKey, function(newKey)
+        Settings.AimAssistKey = newKey
+    end)
+
+    -----------------------------------------------------------------
+    -- Silent Aim Controls
+    -----------------------------------------------------------------
+    createSlider(tabPages["Aim Assist"], "Silent FOV Radius", 194, Settings.SilentAimFOV, 50, 300, "", function(value)
+        Settings.SilentAimFOV = value
+    end)
+
+    createSlider(tabPages["Aim Assist"], "Silent Smoothness", 238, math.floor(Settings.SilentAimSmoothness * 100), 1, 100, "%", function(value)
+        Settings.SilentAimSmoothness = value / 100
+    end)
+
+    createBoneSelector(tabPages["Aim Assist"], "Silent Target Bone", 282, Settings.SilentAimBone, {"Head", "Neck", "Chest"}, function(bone)
+        Settings.SilentAimBone = bone
+    end)
+
+    createKeybindButton(tabPages["Aim Assist"], "Silent Aim Key", 316, Settings.SilentAimKey, function(newKey)
+        Settings.SilentAimKey = newKey
+    end)
+
     local isDragging = false
     local dragStartPos = Vector2.zero
     local panelStartPos = UDim2.new()
@@ -921,6 +1141,150 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
                 data.Label.Text = string.format("%s • %dm", player.DisplayName, math.floor(dist))
             else
                 data.Label.Text = string.format("%s • --", player.DisplayName)
+            end
+        end
+    end
+
+    -- 4. Aim Assist System
+    if Settings.AimAssistEnabled then
+        local isAimKeyDown = UserInputService:IsKeyDown(Settings.AimAssistKey)
+        
+        if isAimKeyDown then
+            local closestTarget = nil
+            local closestDistance = math.huge
+            
+            for player, data in pairs(trackedPlayers) do
+                local teammate = isTeammate(player)
+                local isAllowed = Settings.TeamCheckEnabled and not Settings.TeamColorEnabled and teammate
+                if isAllowed then continue end
+                
+                if data.CharModel and data.CharModel.Parent then
+                    local targetPart: BasePart?
+                    local boneName = Settings.AimAssistBone
+                    
+                    if boneName == "Head" then
+                        targetPart = data.CharModel:FindFirstChild("Head")
+                    elseif boneName == "Neck" then
+                        targetPart = data.CharModel:FindFirstChild("Neck") or data.CharModel:FindFirstChild("UpperTorso")
+                    elseif boneName == "Chest" then
+                        targetPart = data.CharModel:FindFirstChild("UpperTorso") or data.CharModel:FindFirstChild("Torso") or data.CharModel:FindFirstChild("HumanoidRootPart")
+                    end
+                    
+                    if targetPart and targetPart:IsA("BasePart") then
+                        local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                        if onScreen then
+                            local centerX, centerY = Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2
+                            local dx = screenPos.X - centerX
+                            local dy = screenPos.Y - centerY
+                            local distance = math.sqrt(dx * dx + dy * dy)
+                            
+                            if distance < Settings.AimAssistFOV and distance < closestDistance then
+                                closestDistance = distance
+                                closestTarget = targetPart
+                            end
+                        end
+                    end
+                end
+            end
+            
+            if closestTarget then
+                local targetCFrame = closestTarget.CFrame
+                local currentMouseDelta = UserInputService:GetMouseDelta()
+                local aimDelta = (targetCFrame * CFrame.new(0, 0, -10) - Camera.CFrame.p).Unit * Settings.AimAssistSmoothness
+                
+                UserInputService.SendMouseMovement(
+                    math.floor(aimDelta.X * 100),
+                    math.floor(aimDelta.Y * 100)
+                )
+            end
+            
+            -- Update FOV Circle
+            fovCircle.Visible = true
+            fovCircle.Size = UDim2.new(0, Settings.AimAssistFOV * 2, 0, Settings.AimAssistFOV * 2)
+            fovCircle.BackgroundTransparency = 0.7
+            fovCircle.BorderSizePixel = 2
+        else
+            fovCircle.Visible = false
+        end
+    else
+        fovCircle.Visible = false
+    end
+
+    -- 5. Silent Aim System
+    if Settings.SilentAimEnabled then
+        local isSilentAimKeyDown = UserInputService:IsKeyDown(Settings.SilentAimKey)
+        
+        if isSilentAimKeyDown and UserInputService:IsMouseButton1Down() then
+            local closestTarget = nil
+            local closestDistance = math.huge
+            
+            for player, data in pairs(trackedPlayers) do
+                local teammate = isTeammate(player)
+                local isAllowed = Settings.TeamCheckEnabled and not Settings.TeamColorEnabled and teammate
+                if isAllowed then continue end
+                
+                if data.CharModel and data.CharModel.Parent then
+                    local targetPart: BasePart?
+                    local boneName = Settings.SilentAimBone
+                    
+                    if boneName == "Head" then
+                        targetPart = data.CharModel:FindFirstChild("Head")
+                    elseif boneName == "Neck" then
+                        targetPart = data.CharModel:FindFirstChild("Neck") or data.CharModel:FindFirstChild("UpperTorso")
+                    elseif boneName == "Chest" then
+                        targetPart = data.CharModel:FindFirstChild("UpperTorso") or data.CharModel:FindFirstChild("Torso") or data.CharModel:FindFirstChild("HumanoidRootPart")
+                    end
+                    
+                    if targetPart and targetPart:IsA("BasePart") then
+                        local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                        if onScreen then
+                            local centerX, centerY = Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2
+                            local dx = screenPos.X - centerX
+                            local dy = screenPos.Y - centerY
+                            local distance = math.sqrt(dx * dx + dy * dy)
+                            
+                            if distance < Settings.SilentAimFOV and distance < closestDistance then
+                                closestDistance = distance
+                                closestTarget = targetPart
+                            end
+                        end
+                    end
+                end
+            end
+            
+            if closestTarget then
+                local weapon = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+                if weapon and weapon:IsA("Tool") then
+                    -- Get weapon handle position
+                    local handle = weapon:FindFirstChild("Handle")
+                    local weaponPosition = handle and handle.Position or Camera.CFrame.p
+                    
+                    -- Calculate direction to target
+                    local targetPosition = closestTarget.Position
+                    local direction = (targetPosition - weaponPosition).Unit
+                    
+                    -- Modify mouse location for games that use it
+                    local mouse = LocalPlayer:GetMouse()
+                    mouse.X = Camera.ViewportSize.X / 2
+                    mouse.Y = Camera.ViewportSize.Y / 2
+                    
+                    -- Set weapon attribute if it exists
+                    if weapon:GetAttribute("MouseLocation") then
+                        weapon:SetAttribute("MouseLocation", targetPosition)
+                    end
+                    
+                    -- Set local player attribute if it exists
+                    if LocalPlayer.Character:GetAttribute("MouseLocation") then
+                        LocalPlayer.Character:SetAttribute("MouseLocation", targetPosition)
+                    end
+                    
+                    -- Modify weapon firing if it has a fire event
+                    if weapon.FireServer then
+                        -- Hook the fire event to redirect bullets
+                        local originalFireServer = weapon.FireServer
+                        -- This is a placeholder - actual implementation depends on the game
+                    end
+                end
             end
         end
     end
