@@ -1,39 +1,41 @@
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local Teams = game:GetService("Teams")
+-- Scoped execution to prevent register limit errors
+do
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local TweenService = game:GetService("TweenService")
+    local UserInputService = game:GetService("UserInputService")
+    local Teams = game:GetService("Teams")
 
-local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-local Camera = workspace.CurrentCamera or workspace:WaitForChild("Camera")
+    local LocalPlayer = Players.LocalPlayer
+    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+    local Camera = workspace.CurrentCamera or workspace:WaitForChild("Camera")
 
--- State settings
-local Settings = {
-    HighlightsEnabled = true,
-    BoxesEnabled = true,          -- 2D Screen-space Box ESP
-    NametagsEnabled = true,
-    TeamCheckEnabled = true,
-    TeamColorEnabled = true,      -- Toggles whether teammates get team color or have no ESP
-    EnemyColor = Color3.fromRGB(255, 65, 65),
-    FriendlyColor = Color3.fromRGB(0, 180, 255),
-    OutlineColor = Color3.fromRGB(255, 255, 255),
-    FillTransparency = 0.55,
-    OutlineTransparency = 0.1,
-    ToggleKey = Enum.KeyCode.RightShift,
-    -- Aim Assist Settings
-    AimAssistEnabled = false,
-    AimAssistFOV = 150,
-    AimAssistSmoothness = 0.15,
-    AimAssistBone = "Head",       -- "Head", "Chest", "Neck"
-    AimAssistKey = Enum.KeyCode.RightControl,
-    -- Silent Aim Settings
-    SilentAimEnabled = false,
-    SilentAimFOV = 150,
-    SilentAimSmoothness = 0.2,
-    SilentAimBone = "Head",
-    SilentAimKey = Enum.KeyCode.RightControl,
-}
+    -- State settings
+    local Settings = {
+        HighlightsEnabled = true,
+        BoxesEnabled = true,          -- 2D Screen-space Box ESP
+        NametagsEnabled = true,
+        TeamCheckEnabled = true,
+        TeamColorEnabled = true,      -- Toggles whether teammates get team color or have no ESP
+        EnemyColor = Color3.fromRGB(255, 65, 65),
+        FriendlyColor = Color3.fromRGB(0, 180, 255),
+        OutlineColor = Color3.fromRGB(255, 255, 255),
+        FillTransparency = 0.55,
+        OutlineTransparency = 0.1,
+        ToggleKey = Enum.KeyCode.RightShift,
+        -- Aim Assist Settings
+        AimAssistEnabled = false,
+        AimAssistFOV = 150,
+        AimAssistSmoothness = 0.15,
+        AimAssistBone = "Head",       -- "Head", "Chest", "Neck"
+        AimAssistKey = Enum.KeyCode.RightControl,
+        -- Silent Aim Settings
+        SilentAimEnabled = false,
+        SilentAimFOV = 150,
+        SilentAimSmoothness = 0.2,
+        SilentAimBone = "Head",
+        SilentAimKey = Enum.KeyCode.RightControl,
+    }
 
 type TrackedData = {
     Highlight: Highlight?,
@@ -1331,3 +1333,4 @@ end)
 
 -- Initialize Modern Tabbed UI
 buildModernUI()
+end
