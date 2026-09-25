@@ -3,6 +3,8 @@
 -- Split into multiple do...end blocks to avoid Roblox 200-local register limit
 -- Optimized for games with no Roblox Teams and custom character models
 
+_G.G = {}
+
 -- =====================================================================
 -- BLOCK 1: Services, Shared Config, ESP Core
 -- =====================================================================
@@ -19,25 +21,25 @@ do
 
 	-- Shared config table accessible across all blocks
 	local G = {}
-	G.Players = Players
-	G.RunService = RunService
-	G.TweenService = TweenService
-	G.UserInputService = UserInputService
-	G.Teams = Teams
-	G.LocalPlayer = LocalPlayer
-	G.PlayerGui = PlayerGui
-	G.Camera = Camera
-	G.isRunning = true
-	G.trackedPlayers = {}
-	G.localAnchor = nil
-	G.uiVisible = true
-	G.isAnimating = false
-	G.isDragging = false
-	G.dragStartPos = nil
-	G.panelStartPos = nil
+	_G.G.Players = Players
+	_G.G.RunService = RunService
+	_G.G.TweenService = TweenService
+	_G.G.UserInputService = UserInputService
+	_G.G.Teams = Teams
+	_G.G.LocalPlayer = LocalPlayer
+	_G.G.PlayerGui = PlayerGui
+	_G.G.Camera = Camera
+	_G.G.isRunning = true
+	_G.G.trackedPlayers = {}
+	_G.G.localAnchor = nil
+	_G.G.uiVisible = true
+	_G.G.isAnimating = false
+	_G.G.isDragging = false
+	_G.G.dragStartPos = nil
+	_G.G.panelStartPos = nil
 
 	-- Settings
-	G.Settings = {
+	_G.G.Settings = {
 		-- ESP
 		HighlightsEnabled = true,
 		BoxesEnabled = true,
@@ -65,17 +67,17 @@ do
 		SilentAimKey = Enum.KeyCode.RightControl,
 	}
 
-	G.version = "3.1.0"
+	_G.G.version = "3.1.0"
 
 	-- UI References (set in block 2)
-	G.panel = nil
-	G.shortcutHint = nil
-	G.screenGui = nil
-	G.boxContainer = nil
-	G.fovCircle = nil
+	_G.G.panel = nil
+	_G.G.shortcutHint = nil
+	_G.G.screenGui = nil
+	_G.G.boxContainer = nil
+	_G.G.fovCircle = nil
 
 	-- Bone name lists for custom character models
-	G.BONE_ALIASES = {
+	_G.G.BONE_ALIASES = {
 		Head = {"Head", "Head1", "Head2", "Head3", "Cranium"},
 		Neck = {"Neck", "Neck1", "UpperTorso", "Chest", "Cervical"},
 		Chest = {"UpperTorso", "Torso", "Chest", "HumanoidRootPart", "Core", "Main", "Abdomen"},
@@ -99,31 +101,31 @@ do
 	-- Team Detection (v3: robust multi-method)
 	-- =====================================================================
 	local function isTeammate(player: Player): boolean
-		if not G.Settings.TeamCheckEnabled then
+		if not _G.G.Settings.TeamCheckEnabled then
 			return false
 		end
-		if player == G.LocalPlayer then
+		if player == _G.G.LocalPlayer then
 			return true
 		end
-		if player.Team and G.LocalPlayer.Team then
-			if player.Team == G.LocalPlayer.Team then
+		if player.Team and _G.G.LocalPlayer.Team then
+			if player.Team == _G.G.LocalPlayer.Team then
 				return true
 			end
 		end
-		if player.TeamColor and G.LocalPlayer.TeamColor then
-			if player.TeamColor == G.LocalPlayer.TeamColor then
+		if player.TeamColor and _G.G.LocalPlayer.TeamColor then
+			if player.TeamColor == _G.G.LocalPlayer.TeamColor then
 				return true
 			end
 		end
 		local playerTeam = tostring(player:GetAttribute("Team") or player:GetAttribute("team") or "")
-		local localTeam = tostring(G.LocalPlayer:GetAttribute("Team") or G.LocalPlayer:GetAttribute("team") or "")
+		local localTeam = tostring(_G.G.LocalPlayer:GetAttribute("Team") or _G.G.LocalPlayer:GetAttribute("team") or "")
 		if playerTeam ~= "" and localTeam ~= "" and playerTeam == localTeam then
 			return true
 		end
 		local pChar = player.Character
 		if pChar then
 			local pCharTeam = tostring(pChar:GetAttribute("Team") or pChar:GetAttribute("team") or "")
-			local lChar = G.LocalPlayer.Character
+			local lChar = _G.G.LocalPlayer.Character
 			if lChar then
 				local lCharTeam = tostring(lChar:GetAttribute("Team") or lChar:GetAttribute("team") or "")
 				if pCharTeam ~= "" and lCharTeam ~= "" and pCharTeam == lCharTeam then
@@ -135,7 +137,7 @@ do
 	end
 
 	local function shouldShowPlayer(player: Player): boolean
-		if G.Settings.TeamCheckEnabled and not G.Settings.TeamColorEnabled then
+		if _G.G.Settings.TeamCheckEnabled and not _G.G.Settings.TeamColorEnabled then
 			if isTeammate(player) then
 				return false
 			end
@@ -144,7 +146,7 @@ do
 	end
 
 	local function shouldAimAt(player: Player): boolean
-		if G.Settings.TeamCheckEnabled and not G.Settings.TeamColorEnabled then
+		if _G.G.Settings.TeamCheckEnabled and not _G.G.Settings.TeamColorEnabled then
 			if isTeammate(player) then
 				return false
 			end
@@ -197,7 +199,7 @@ do
 	end
 
 	local function getTargetPart(char: Model, boneName: string): BasePart?
-		local aliases = G.BONE_ALIASES[boneName]
+		local aliases = _G.G.BONE_ALIASES[boneName]
 		if aliases then
 			for _, name in ipairs(aliases) do
 				local part = char:FindFirstChild(name)
@@ -224,12 +226,12 @@ do
 	end
 
 	local function getCamera(): Camera?
-		if G.Camera and G.Camera.Parent and G.Camera:IsDescendantOf(workspace) then
-			return G.Camera
+		if _G.G.Camera and _G.G.Camera.Parent and _G.G.Camera:IsDescendantOf(workspace) then
+			return _G.G.Camera
 		end
 		local found = workspace:FindFirstChildWhichIsA("Camera")
 		if found then
-			G.Camera = found
+			_G.G.Camera = found
 			return found
 		end
 		return nil
@@ -239,7 +241,7 @@ do
 	-- Visuals Setup & Destruction
 	-- =====================================================================
 	local function cleanPlayer(player: Player)
-		local data = G.trackedPlayers[player]
+		local data = _G.G.trackedPlayers[player]
 		if data then
 			if data.DeathConn then
 				data.DeathConn:Disconnect()
@@ -248,27 +250,27 @@ do
 			if data.Highlight then data.Highlight:Destroy() end
 			if data.Box2D then data.Box2D:Destroy() end
 			if data.Tag then data.Tag:Destroy() end
-			G.trackedPlayers[player] = nil
+			_G.G.trackedPlayers[player] = nil
 		end
 	end
 
 	local function updatePlayerVisuals(player: Player)
-		local data = G.trackedPlayers[player]
+		local data = _G.G.trackedPlayers[player]
 		if not data then return end
 		local teammate = isTeammate(player)
 		local show = shouldShowPlayer(player)
-		local activeColor = (teammate and G.Settings.TeamColorEnabled) and G.Settings.FriendlyColor or G.Settings.EnemyColor
+		local activeColor = (teammate and _G.G.Settings.TeamColorEnabled) and _G.G.Settings.FriendlyColor or _G.G.Settings.EnemyColor
 
 		if data.Highlight then
-			data.Highlight.Enabled = G.Settings.HighlightsEnabled and show
+			data.Highlight.Enabled = _G.G.Settings.HighlightsEnabled and show
 			data.Highlight.FillColor = activeColor
 		end
 		if data.Box2D and data.BoxStroke then
-			data.Box2D.Visible = G.Settings.BoxesEnabled and show
+			data.Box2D.Visible = _G.G.Settings.BoxesEnabled and show
 			data.BoxStroke.Color = activeColor
 		end
 		if data.Tag then
-			data.Tag.Enabled = G.Settings.NametagsEnabled and show
+			data.Tag.Enabled = _G.G.Settings.NametagsEnabled and show
 		end
 		if data.Label then
 			data.Label.TextColor3 = activeColor
@@ -276,7 +278,7 @@ do
 	end
 
 	local function setupCharacterDisplay(player: Player, character: Model)
-		if player == G.LocalPlayer then return end
+		if player == _G.G.LocalPlayer then return end
 		cleanPlayer(player)
 
 		local anchor: BasePart? = nil
@@ -294,27 +296,27 @@ do
 
 		local teammate = isTeammate(player)
 		local show = shouldShowPlayer(player)
-		local initialColor = (teammate and G.Settings.TeamColorEnabled) and G.Settings.FriendlyColor or G.Settings.EnemyColor
+		local initialColor = (teammate and _G.G.Settings.TeamColorEnabled) and _G.G.Settings.FriendlyColor or _G.G.Settings.EnemyColor
 
 		-- 1. Native Silhouette Highlight (parented to PlayerGui for through-wall rendering)
 		local highlight = Instance.new("Highlight")
 		highlight.Name = "HL_" .. player.Name
 		highlight.Adornee = character
 		highlight.FillColor = initialColor
-		highlight.OutlineColor = G.Settings.OutlineColor
-		highlight.FillTransparency = G.Settings.FillTransparency
-		highlight.OutlineTransparency = G.Settings.OutlineTransparency
+		highlight.OutlineColor = _G.G.Settings.OutlineColor
+		highlight.FillTransparency = _G.G.Settings.FillTransparency
+		highlight.OutlineTransparency = _G.G.Settings.OutlineTransparency
 		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-		highlight.Enabled = G.Settings.HighlightsEnabled and show
-		highlight.Parent = G.PlayerGui
+		highlight.Enabled = _G.G.Settings.HighlightsEnabled and show
+		highlight.Parent = _G.G.PlayerGui
 
 		-- 2. True 2D Screen-Space Box ESP
 		local boxFrame = Instance.new("Frame")
 		boxFrame.Name = "2DBox_" .. player.Name
 		boxFrame.BackgroundTransparency = 1
 		boxFrame.BorderSizePixel = 0
-		boxFrame.Visible = G.Settings.BoxesEnabled and show
-		boxFrame.Parent = G.boxContainer
+		boxFrame.Visible = _G.G.Settings.BoxesEnabled and show
+		boxFrame.Parent = _G.G.boxContainer
 
 		local boxStroke = Instance.new("UIStroke")
 		boxStroke.Color = initialColor
@@ -331,8 +333,8 @@ do
 		billboard.StudsOffset = Vector3.new(0, (sz.Y * 0.5) + 1.2, 0)
 		billboard.AlwaysOnTop = true
 		billboard.ResetOnSpawn = false
-		billboard.Enabled = G.Settings.NametagsEnabled and show
-		billboard.Parent = G.PlayerGui
+		billboard.Enabled = _G.G.Settings.NametagsEnabled and show
+		billboard.Parent = _G.G.PlayerGui
 
 		local pillFrame = Instance.new("Frame")
 		pillFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -375,7 +377,7 @@ do
 			if not parent then cleanPlayer(player) end
 		end)
 
-		G.trackedPlayers[player] = {
+		_G.G.trackedPlayers[player] = {
 			Highlight = highlight,
 			Box2D = boxFrame,
 			BoxStroke = boxStroke,
@@ -391,32 +393,32 @@ do
 	-- Local Player Anchor Sync
 	-- =====================================================================
 	local function refreshLocalAnchor()
-		local char = G.LocalPlayer.Character
+		local char = _G.G.LocalPlayer.Character
 		if not isCharacterAlive(char) then
-			G.localAnchor = nil
+			_G.G.localAnchor = nil
 			return
 		end
-		G.localAnchor = getModelAnchor(char)
+		_G.G.localAnchor = getModelAnchor(char)
 	end
 
-	G.LocalPlayer.CharacterAdded:Connect(function(char)
-		G.localAnchor = nil
+	_G.G.LocalPlayer.CharacterAdded:Connect(function(char)
+		_G.G.localAnchor = nil
 		task.spawn(function()
 			local tries = 0
-			while tries < 40 and not G.localAnchor do
-				G.localAnchor = getModelAnchor(char)
-				if G.localAnchor then break end
+			while tries < 40 and not _G.G.localAnchor do
+				_G.G.localAnchor = getModelAnchor(char)
+				if _G.G.localAnchor then break end
 				tries += 1
 				task.wait(0.1)
 			end
 		end)
 	end)
 
-	G.LocalPlayer.CharacterRemoving:Connect(function()
-		G.localAnchor = nil
+	_G.G.LocalPlayer.CharacterRemoving:Connect(function()
+		_G.G.localAnchor = nil
 	end)
 
-	if G.LocalPlayer.Character then
+	if _G.G.LocalPlayer.Character then
 		refreshLocalAnchor()
 	end
 
@@ -424,7 +426,7 @@ do
 	-- Player Lifecycle
 	-- =====================================================================
 	local function hookPlayer(player: Player)
-		if player == G.LocalPlayer then return end
+		if player == _G.G.LocalPlayer then return end
 
 		player.CharacterAdded:Connect(function(char)
 			cleanPlayer(player)
@@ -446,67 +448,67 @@ do
 		end
 	end
 
-	G.hookPlayer = hookPlayer
-	G.isTeammate = isTeammate
-	G.shouldShowPlayer = shouldShowPlayer
-	G.shouldAimAt = shouldAimAt
-	G.isCharacterAlive = isCharacterAlive
-	G.getModelAnchor = getModelAnchor
-	G.getTargetPart = getTargetPart
-	G.getCustomBoundingBox = getCustomBoundingBox
-	G.cleanPlayer = cleanPlayer
-	G.updatePlayerVisuals = updatePlayerVisuals
-	G.setupCharacterDisplay = setupCharacterDisplay
-	G.refreshLocalAnchor = refreshLocalAnchor
-	G.getCamera = getCamera
+	_G.G.hookPlayer = hookPlayer
+	_G.G.isTeammate = isTeammate
+	_G.G.shouldShowPlayer = shouldShowPlayer
+	_G.G.shouldAimAt = shouldAimAt
+	_G.G.isCharacterAlive = isCharacterAlive
+	_G.G.getModelAnchor = getModelAnchor
+	_G.G.getTargetPart = getTargetPart
+	_G.G.getCustomBoundingBox = getCustomBoundingBox
+	_G.G.cleanPlayer = cleanPlayer
+	_G.G.updatePlayerVisuals = updatePlayerVisuals
+	_G.G.setupCharacterDisplay = setupCharacterDisplay
+	_G.G.refreshLocalAnchor = refreshLocalAnchor
+	_G.G.getCamera = getCamera
 
 	-- Create shared UI containers
-	G.screenGui = Instance.new("ScreenGui")
-	G.screenGui.Name = "TacticalRadarHUD"
-	G.screenGui.ResetOnSpawn = false
-	G.screenGui.IgnoreGuiInset = true
-	G.screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	G.screenGui.Parent = G.PlayerGui
+	_G.G.screenGui = Instance.new("ScreenGui")
+	_G.G.screenGui.Name = "TacticalRadarHUD"
+	_G.G.screenGui.ResetOnSpawn = false
+	_G.G.screenGui.IgnoreGuiInset = true
+	_G.G.screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	_G.G.screenGui.Parent = _G.G.PlayerGui
 
-	G.boxContainer = Instance.new("Folder")
-	G.boxContainer.Name = "2D_Boxes"
-	G.boxContainer.Parent = G.screenGui
+	_G.G.boxContainer = Instance.new("Folder")
+	_G.G.boxContainer.Name = "2D_Boxes"
+	_G.G.boxContainer.Parent = _G.G.screenGui
 
 	-- FOV Circle for Aim Assist
-	G.fovCircle = Instance.new("Frame")
-	G.fovCircle.Name = "FOV_Circle"
-	G.fovCircle.Size = UDim2.new(0, 0, 0, 0)
-	G.fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
-	G.fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-	G.fovCircle.BackgroundColor3 = Color3.fromRGB(0, 190, 255)
-	G.fovCircle.BackgroundTransparency = 0.85
-	G.fovCircle.BorderSizePixel = 2
-	G.fovCircle.BorderColor3 = Color3.fromRGB(0, 190, 255)
-	G.fovCircle.Visible = false
-	G.fovCircle.Parent = G.screenGui
+	_G.G.fovCircle = Instance.new("Frame")
+	_G.G.fovCircle.Name = "FOV_Circle"
+	_G.G.fovCircle.Size = UDim2.new(0, 0, 0, 0)
+	_G.G.fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
+	_G.G.fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+	_G.G.fovCircle.BackgroundColor3 = Color3.fromRGB(0, 190, 255)
+	_G.G.fovCircle.BackgroundTransparency = 0.85
+	_G.G.fovCircle.BorderSizePixel = 2
+	_G.G.fovCircle.BorderColor3 = Color3.fromRGB(0, 190, 255)
+	_G.G.fovCircle.Visible = false
+	_G.G.fovCircle.Parent = _G.G.screenGui
 
 	local fovCorner = Instance.new("UICorner")
 	fovCorner.CornerRadius = UDim.new(0.5, 0)
-	fovCorner.Parent = G.fovCircle
+	fovCorner.Parent = _G.G.fovCircle
 
 	local fovStroke = Instance.new("UIStroke")
 	fovStroke.Color = Color3.fromRGB(0, 190, 255)
 	fovStroke.Thickness = 2
 	fovStroke.Transparency = 0.3
-	fovStroke.Parent = G.fovCircle
+	fovStroke.Parent = _G.G.fovCircle
 end
 
 -- =====================================================================
 -- BLOCK 2: UI Building Functions
 -- =====================================================================
 do
-	local Players = G.Players
-	local RunService = G.RunService
-	local TweenService = G.TweenService
-	local UserInputService = G.UserInputService
-	local LocalPlayer = G.LocalPlayer
-	local screenGui = G.screenGui
-	local shortcutHint = G.shortcutHint
+	local Players = _G.G.Players
+	local RunService = _G.G.RunService
+	local TweenService = _G.G.TweenService
+	local UserInputService = _G.G.UserInputService
+	local LocalPlayer = _G.G.LocalPlayer
+	local screenGui = _G.G.screenGui
+	local shortcutHint = _G.G.shortcutHint
 
 	local function buildModernUI()
 		local panel = Instance.new("Frame")
@@ -1029,63 +1031,63 @@ do
 		-----------------------------------------------------------------
 		-- Tab 1: Visuals Controls
 		-----------------------------------------------------------------
-		createToggleButton(tabPages["Visuals"], "Highlights", 4, G.Settings.HighlightsEnabled, function(enabled)
-			G.Settings.HighlightsEnabled = enabled
-			for player in pairs(G.trackedPlayers) do G.updatePlayerVisuals(player) end
+		createToggleButton(tabPages["Visuals"], "Highlights", 4, _G.G.Settings.HighlightsEnabled, function(enabled)
+			_G.G.Settings.HighlightsEnabled = enabled
+			for player in pairs(_G.G.trackedPlayers) do _G.G.updatePlayerVisuals(player) end
 		end)
 
-		createToggleButton(tabPages["Visuals"], "2D Box ESP", 38, G.Settings.BoxesEnabled, function(enabled)
-			G.Settings.BoxesEnabled = enabled
-			for player in pairs(G.trackedPlayers) do G.updatePlayerVisuals(player) end
+		createToggleButton(tabPages["Visuals"], "2D Box ESP", 38, _G.G.Settings.BoxesEnabled, function(enabled)
+			_G.G.Settings.BoxesEnabled = enabled
+			for player in pairs(_G.G.trackedPlayers) do _G.G.updatePlayerVisuals(player) end
 		end)
 
-		createToggleButton(tabPages["Visuals"], "Compact Tags", 72, G.Settings.NametagsEnabled, function(enabled)
-			G.Settings.NametagsEnabled = enabled
-			for player in pairs(G.trackedPlayers) do G.updatePlayerVisuals(player) end
+		createToggleButton(tabPages["Visuals"], "Compact Tags", 72, _G.G.Settings.NametagsEnabled, function(enabled)
+			_G.G.Settings.NametagsEnabled = enabled
+			for player in pairs(_G.G.trackedPlayers) do _G.G.updatePlayerVisuals(player) end
 		end)
 
 		-----------------------------------------------------------------
 		-- Tab 2: Colors Controls
 		-----------------------------------------------------------------
-		createColorSlider(tabPages["Colors"], "Target / Enemy Color", 10, G.Settings.EnemyColor, function(newColor)
-			G.Settings.EnemyColor = newColor
-			for player in pairs(G.trackedPlayers) do
-				if not G.isTeammate(player) then G.updatePlayerVisuals(player) end
+		createColorSlider(tabPages["Colors"], "Target / Enemy Color", 10, _G.G.Settings.EnemyColor, function(newColor)
+			_G.G.Settings.EnemyColor = newColor
+			for player in pairs(_G.G.trackedPlayers) do
+				if not _G.G.isTeammate(player) then _G.G.updatePlayerVisuals(player) end
 			end
 		end)
 
-		createColorSlider(tabPages["Colors"], "Teammate Color", 58, G.Settings.FriendlyColor, function(newColor)
-			G.Settings.FriendlyColor = newColor
-			for player in pairs(G.trackedPlayers) do
-				if G.isTeammate(player) then G.updatePlayerVisuals(player) end
+		createColorSlider(tabPages["Colors"], "Teammate Color", 58, _G.G.Settings.FriendlyColor, function(newColor)
+			_G.G.Settings.FriendlyColor = newColor
+			for player in pairs(_G.G.trackedPlayers) do
+				if _G.G.isTeammate(player) then _G.G.updatePlayerVisuals(player) end
 			end
 		end)
 
 		-----------------------------------------------------------------
 		-- Tab 3: Misc Controls
 		-----------------------------------------------------------------
-		createToggleButton(tabPages["Misc"], "Team Check", 4, G.Settings.TeamCheckEnabled, function(enabled)
-			G.Settings.TeamCheckEnabled = enabled
-			for player in pairs(G.trackedPlayers) do G.updatePlayerVisuals(player) end
+		createToggleButton(tabPages["Misc"], "Team Check", 4, _G.G.Settings.TeamCheckEnabled, function(enabled)
+			_G.G.Settings.TeamCheckEnabled = enabled
+			for player in pairs(_G.G.trackedPlayers) do _G.G.updatePlayerVisuals(player) end
 		end)
 
-		createToggleButton(tabPages["Misc"], "Team Color", 38, G.Settings.TeamColorEnabled, function(enabled)
-			G.Settings.TeamColorEnabled = enabled
-			for player in pairs(G.trackedPlayers) do G.updatePlayerVisuals(player) end
+		createToggleButton(tabPages["Misc"], "Team Color", 38, _G.G.Settings.TeamColorEnabled, function(enabled)
+			_G.G.Settings.TeamColorEnabled = enabled
+			for player in pairs(_G.G.trackedPlayers) do _G.G.updatePlayerVisuals(player) end
 		end)
 
 		-----------------------------------------------------------------
 		-- Tab 4: Settings Controls
 		-----------------------------------------------------------------
-		createKeybindButton(tabPages["Settings"], "Minimize Key", 4, G.Settings.ToggleKey, function(newKey)
-			G.Settings.ToggleKey = newKey
+		createKeybindButton(tabPages["Settings"], "Minimize Key", 4, _G.G.Settings.ToggleKey, function(newKey)
+			_G.G.Settings.ToggleKey = newKey
 			shortcutHint.Text = newKey.Name
 		end)
 
 		createActionButton(tabPages["Settings"], "Terminate Script", 42, Color3.fromRGB(180, 40, 40), function()
-			G.isRunning = false
-			for player in pairs(G.trackedPlayers) do
-				G.cleanPlayer(player)
+			_G.G.isRunning = false
+			for player in pairs(_G.G.trackedPlayers) do
+				_G.G.cleanPlayer(player)
 			end
 			if screenGui then
 				screenGui:Destroy()
@@ -1095,56 +1097,56 @@ do
 		-----------------------------------------------------------------
 		-- Tab 5: Aim Assist Controls
 		-----------------------------------------------------------------
-		createToggleButton(tabPages["Aim Assist"], "Enable Aim Assist", 4, G.Settings.AimAssistEnabled, function(enabled)
-			G.Settings.AimAssistEnabled = enabled
+		createToggleButton(tabPages["Aim Assist"], "Enable Aim Assist", 4, _G.G.Settings.AimAssistEnabled, function(enabled)
+			_G.G.Settings.AimAssistEnabled = enabled
 		end)
 
-		createToggleButton(tabPages["Aim Assist"], "Show FOV Circle", 40, G.Settings.AimAssistFOVCircleEnabled, function(enabled)
-			G.Settings.AimAssistFOVCircleEnabled = enabled
+		createToggleButton(tabPages["Aim Assist"], "Show FOV Circle", 40, _G.G.Settings.AimAssistFOVCircleEnabled, function(enabled)
+			_G.G.Settings.AimAssistFOVCircleEnabled = enabled
 		end)
 
-		createSlider(tabPages["Aim Assist"], "FOV Radius", 88, G.Settings.AimAssistFOV, 50, 300, "", function(value)
-			G.Settings.AimAssistFOV = value
+		createSlider(tabPages["Aim Assist"], "FOV Radius", 88, _G.G.Settings.AimAssistFOV, 50, 300, "", function(value)
+			_G.G.Settings.AimAssistFOV = value
 		end)
 
-		createSlider(tabPages["Aim Assist"], "Smoothness", 136, math.floor(G.Settings.AimAssistSmoothness * 100), 1, 100, "%", function(value)
-			G.Settings.AimAssistSmoothness = value / 100
+		createSlider(tabPages["Aim Assist"], "Smoothness", 136, math.floor(_G.G.Settings.AimAssistSmoothness * 100), 1, 100, "%", function(value)
+			_G.G.Settings.AimAssistSmoothness = value / 100
 		end)
 
-		createBoneSelector(tabPages["Aim Assist"], "Target Bone", 184, G.Settings.AimAssistBone, {"Head", "Neck", "Chest"}, function(bone)
-			G.Settings.AimAssistBone = bone
+		createBoneSelector(tabPages["Aim Assist"], "Target Bone", 184, _G.G.Settings.AimAssistBone, {"Head", "Neck", "Chest"}, function(bone)
+			_G.G.Settings.AimAssistBone = bone
 		end)
 
-		createKeybindButton(tabPages["Aim Assist"], "Aim Key", 228, G.Settings.AimAssistKey, function(newKey)
-			G.Settings.AimAssistKey = newKey
+		createKeybindButton(tabPages["Aim Assist"], "Aim Key", 228, _G.G.Settings.AimAssistKey, function(newKey)
+			_G.G.Settings.AimAssistKey = newKey
 		end)
 
 		-----------------------------------------------------------------
 		-- Silent Aim Controls
 		-----------------------------------------------------------------
-		createToggleButton(tabPages["Aim Assist"], "Enable Silent Aim", 272, G.Settings.SilentAimEnabled, function(enabled)
-			G.Settings.SilentAimEnabled = enabled
+		createToggleButton(tabPages["Aim Assist"], "Enable Silent Aim", 272, _G.G.Settings.SilentAimEnabled, function(enabled)
+			_G.G.Settings.SilentAimEnabled = enabled
 		end)
 
-		createSlider(tabPages["Aim Assist"], "Silent FOV Radius", 320, G.Settings.SilentAimFOV, 50, 300, "", function(value)
-			G.Settings.SilentAimFOV = value
+		createSlider(tabPages["Aim Assist"], "Silent FOV Radius", 320, _G.G.Settings.SilentAimFOV, 50, 300, "", function(value)
+			_G.G.Settings.SilentAimFOV = value
 		end)
 
-		createSlider(tabPages["Aim Assist"], "Silent Smoothness", 368, math.floor(G.Settings.SilentAimSmoothness * 100), 1, 100, "%", function(value)
-			G.Settings.SilentAimSmoothness = value / 100
+		createSlider(tabPages["Aim Assist"], "Silent Smoothness", 368, math.floor(_G.G.Settings.SilentAimSmoothness * 100), 1, 100, "%", function(value)
+			_G.G.Settings.SilentAimSmoothness = value / 100
 		end)
 
-		createBoneSelector(tabPages["Aim Assist"], "Silent Target Bone", 416, G.Settings.SilentAimBone, {"Head", "Neck", "Chest"}, function(bone)
-			G.Settings.SilentAimBone = bone
+		createBoneSelector(tabPages["Aim Assist"], "Silent Target Bone", 416, _G.G.Settings.SilentAimBone, {"Head", "Neck", "Chest"}, function(bone)
+			_G.G.Settings.SilentAimBone = bone
 		end)
 
-		createKeybindButton(tabPages["Aim Assist"], "Silent Aim Key", 460, G.Settings.SilentAimKey, function(newKey)
-			G.Settings.SilentAimKey = newKey
+		createKeybindButton(tabPages["Aim Assist"], "Silent Aim Key", 460, _G.G.Settings.SilentAimKey, function(newKey)
+			_G.G.Settings.SilentAimKey = newKey
 		end)
 
 		-- Store panel reference for block 3
-		G.panel = panel
-		G.shortcutHint = shortcutHint
+		_G.G.panel = panel
+		_G.G.shortcutHint = shortcutHint
 
 		-- Dragging
 		local isDragging = false
@@ -1184,7 +1186,7 @@ do
 
 		UserInputService.InputBegan:Connect(function(input, gameProcessed)
 			if gameProcessed then return end
-			if input.KeyCode == G.Settings.ToggleKey and not isAnimating then
+			if input.KeyCode == _G.G.Settings.ToggleKey and not isAnimating then
 				isAnimating = true
 				uiVisible = not uiVisible
 
@@ -1218,25 +1220,25 @@ end
 -- BLOCK 3: Heartbeat Loop & Game Logic
 -- =====================================================================
 do
-	local Players = G.Players
-	local RunService = G.RunService
-	local UserInputService = G.UserInputService
-	local LocalPlayer = G.LocalPlayer
-	local fovCircle = G.fovCircle
-	local trackedPlayers = G.trackedPlayers
-	local localAnchor = G.localAnchor
-	local refreshLocalAnchor = G.refreshLocalAnchor
-	local isCharacterAlive = G.isCharacterAlive
-	local getCustomBoundingBox = G.getCustomBoundingBox
-	local getCamera = G.getCamera
-	local hookPlayer = G.hookPlayer
-	local isRunning = G.isRunning
-	local Settings = G.Settings
-	local cleanPlayer = G.cleanPlayer
-	local isTeammate = G.isTeammate
-	local shouldShowPlayer = G.shouldShowPlayer
-	local shouldAimAt = G.shouldAimAt
-	local getTargetPart = G.getTargetPart
+	local Players = _G.G.Players
+	local RunService = _G.G.RunService
+	local UserInputService = _G.G.UserInputService
+	local LocalPlayer = _G.G.LocalPlayer
+	local fovCircle = _G.G.fovCircle
+	local trackedPlayers = _G.G.trackedPlayers
+	local localAnchor = _G.G.localAnchor
+	local refreshLocalAnchor = _G.G.refreshLocalAnchor
+	local isCharacterAlive = _G.G.isCharacterAlive
+	local getCustomBoundingBox = _G.G.getCustomBoundingBox
+	local getCamera = _G.G.getCamera
+	local hookPlayer = _G.G.hookPlayer
+	local isRunning = _G.G.isRunning
+	local Settings = _G.G.Settings
+	local cleanPlayer = _G.G.cleanPlayer
+	local isTeammate = _G.G.isTeammate
+	local shouldShowPlayer = _G.G.shouldShowPlayer
+	local shouldAimAt = _G.G.shouldAimAt
+	local getTargetPart = _G.G.getTargetPart
 
 	local lastWatchdogCheck = 0
 	local heartbeatConn
@@ -1473,7 +1475,8 @@ do
 
 	LocalPlayer:GetPropertyChangedSignal("Team"):Connect(function()
 		for player in pairs(trackedPlayers) do
-			G.updatePlayerVisuals(player)
+			_G.G.updatePlayerVisuals(player)
 		end
 	end)
 end
+
