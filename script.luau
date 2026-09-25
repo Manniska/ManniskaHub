@@ -1,3 +1,5 @@
+--!strict
+-- TacticalRadar v2.5.0 - Enhanced ESP & Aim Assist Suite
 -- Scoped execution to prevent register limit errors
 do
     local Players = game:GetService("Players")
@@ -29,6 +31,7 @@ do
         AimAssistSmoothness = 0.15,
         AimAssistBone = "Head",       -- "Head", "Chest", "Neck"
         AimAssistKey = Enum.KeyCode.RightControl,
+        AimAssistFOVCircleEnabled = true,
         -- Silent Aim Settings
         SilentAimEnabled = false,
         SilentAimFOV = 150,
@@ -811,181 +814,46 @@ local function buildModernUI()
         Settings.AimAssistEnabled = enabled
     end)
 
-    createToggleButton(tabPages["Aim Assist"], "Enable Silent Aim", 38, Settings.SilentAimEnabled, function(enabled)
-        Settings.SilentAimEnabled = enabled
+    createToggleButton(tabPages["Aim Assist"], "Show FOV Circle", 40, Settings.AimAssistFOVCircleEnabled, function(enabled)
+        Settings.AimAssistFOVCircleEnabled = enabled
     end)
 
-    -- FOV Slider
-    local function createSlider(parentPage: Frame, titleText: string, yPos: number, initialValue: number, minValue: number, maxValue: number, unit: string, onValueChanged: (number) -> ())
-        local container = Instance.new("Frame")
-        container.Size = UDim2.new(1, 0, 0, 48)
-        container.Position = UDim2.new(0, 0, 0, yPos)
-        container.BackgroundTransparency = 1
-        container.Parent = parentPage
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0.45, 0, 0, 14)
-        label.Position = UDim2.new(0, 16, 0, 0)
-        label.BackgroundTransparency = 1
-        label.Font = Enum.Font.GothamBold
-        label.Text = titleText
-        label.TextColor3 = Color3.fromRGB(170, 185, 205)
-        label.TextSize = 10
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Parent = container
-
-        local valueLabel = Instance.new("TextLabel")
-        valueLabel.Size = UDim2.new(0.3, 0, 0, 14)
-        valueLabel.Position = UDim2.new(0.7, 0, 0, 0)
-        valueLabel.BackgroundTransparency = 1
-        valueLabel.Font = Enum.Font.GothamBold
-        valueLabel.Text = initialValue .. unit
-        valueLabel.TextColor3 = Color3.fromRGB(0, 190, 255)
-        valueLabel.TextSize = 10
-        valueLabel.TextXAlignment = Enum.TextXAlignment.Right
-        valueLabel.Parent = container
-
-        local track = Instance.new("TextButton")
-        track.Size = UDim2.new(1, -32, 0, 8)
-        track.Position = UDim2.new(0, 16, 0, 24)
-        track.Text = ""
-        track.AutoButtonColor = false
-        track.BorderSizePixel = 0
-        track.BackgroundColor3 = Color3.fromRGB(30, 42, 58)
-        track.Parent = container
-
-        local trackCorner = Instance.new("UICorner")
-        trackCorner.CornerRadius = UDim.new(1, 0)
-        trackCorner.Parent = track
-
-        local knob = Instance.new("Frame")
-        knob.Size = UDim2.new(0, 14, 0, 14)
-        knob.AnchorPoint = Vector2.new(0.5, 0.5)
-        local initialPos = (initialValue - minValue) / (maxValue - minValue)
-        knob.Position = UDim2.new(initialPos, 0, 0.5, 0)
-        knob.BackgroundColor3 = Color3.fromRGB(0, 190, 255)
-        knob.BorderSizePixel = 0
-        knob.Parent = track
-
-        local knobCorner = Instance.new("UICorner")
-        knobCorner.CornerRadius = UDim.new(1, 0)
-        knobCorner.Parent = knob
-
-        local knobStroke = Instance.new("UIStroke")
-        knobStroke.Color = Color3.fromRGB(20, 20, 20)
-        knobStroke.Thickness = 1.5
-        knobStroke.Parent = knob
-
-        local isSliding = false
-        local function updateValueFromInput(inputX: number)
-            local relX = math.clamp((inputX - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
-            knob.Position = UDim2.new(relX, 0, 0.5, 0)
-            local newValue = math.floor(minValue + relX * (maxValue - minValue))
-            valueLabel.Text = newValue .. unit
-            onValueChanged(newValue)
-        end
-
-        track.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                isSliding = true
-                updateValueFromInput(input.Position.X)
-            end
-        end)
-
-        UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                isSliding = false
-            end
-        end)
-
-        UserInputService.InputChanged:Connect(function(input)
-            if isSliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                updateValueFromInput(input.Position.X)
-            end
-        end)
-    end
-
-    createSlider(tabPages["Aim Assist"], "FOV Radius", 38, Settings.AimAssistFOV, 50, 300, "", function(value)
+    createSlider(tabPages["Aim Assist"], "FOV Radius", 88, Settings.AimAssistFOV, 50, 300, "", function(value)
         Settings.AimAssistFOV = value
     end)
 
-    createSlider(tabPages["Aim Assist"], "Smoothness", 82, math.floor(Settings.AimAssistSmoothness * 100), 1, 100, "%", function(value)
+    createSlider(tabPages["Aim Assist"], "Smoothness", 136, math.floor(Settings.AimAssistSmoothness * 100), 1, 100, "%", function(value)
         Settings.AimAssistSmoothness = value / 100
     end)
 
-    -- Bone Target Selector
-    local function createBoneSelector(parentPage: Frame, titleText: string, yPos: number, currentBone: string, bones: {string}, onBoneChanged: (string) -> ())
-        local container = Instance.new("Frame")
-        container.Size = UDim2.new(1, 0, 0, 40)
-        container.Position = UDim2.new(0, 0, 0, yPos)
-        container.BackgroundTransparency = 1
-        container.Parent = parentPage
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0.45, 0, 1, 0)
-        label.Position = UDim2.new(0, 16, 0, 0)
-        label.BackgroundTransparency = 1
-        label.Font = Enum.Font.GothamBold
-        label.Text = titleText
-        label.TextColor3 = Color3.fromRGB(180, 195, 215)
-        label.TextSize = 11
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Parent = container
-
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0.45, 0, 1, 0)
-        btn.Position = UDim2.new(0.55, 0, 0, 0)
-        btn.BackgroundColor3 = Color3.fromRGB(25, 30, 40)
-        btn.BorderSizePixel = 0
-        btn.Font = Enum.Font.GothamBold
-        btn.Text = currentBone
-        btn.TextColor3 = Color3.fromRGB(0, 190, 255)
-        btn.TextSize = 10
-        btn.AutoButtonColor = false
-        btn.Parent = container
-
-        local btnCorner = Instance.new("UICorner")
-        btnCorner.CornerRadius = UDim.new(0, 6)
-        btnCorner.Parent = btn
-
-        local btnStroke = Instance.new("UIStroke")
-        btnStroke.Color = Color3.fromRGB(50, 65, 85)
-        btnStroke.Thickness = 1.5
-        btnStroke.Parent = btn
-
-        local currentIndex = table.find(bones, currentBone) or 1
-        btn.MouseButton1Click:Connect(function()
-            currentIndex = (currentIndex % #bones) + 1
-            local newBone = bones[currentIndex]
-            btn.Text = newBone
-            onBoneChanged(newBone)
-        end)
-    end
-
-    createBoneSelector(tabPages["Aim Assist"], "Target Bone", 126, Settings.AimAssistBone, {"Head", "Neck", "Chest"}, function(bone)
+    createBoneSelector(tabPages["Aim Assist"], "Target Bone", 184, Settings.AimAssistBone, {"Head", "Neck", "Chest"}, function(bone)
         Settings.AimAssistBone = bone
     end)
 
-    createKeybindButton(tabPages["Aim Assist"], "Aim Key", 160, Settings.AimAssistKey, function(newKey)
+    createKeybindButton(tabPages["Aim Assist"], "Aim Key", 228, Settings.AimAssistKey, function(newKey)
         Settings.AimAssistKey = newKey
     end)
 
     -----------------------------------------------------------------
     -- Silent Aim Controls
     -----------------------------------------------------------------
-    createSlider(tabPages["Aim Assist"], "Silent FOV Radius", 194, Settings.SilentAimFOV, 50, 300, "", function(value)
+    createToggleButton(tabPages["Aim Assist"], "Enable Silent Aim", 272, Settings.SilentAimEnabled, function(enabled)
+        Settings.SilentAimEnabled = enabled
+    end)
+
+    createSlider(tabPages["Aim Assist"], "Silent FOV Radius", 320, Settings.SilentAimFOV, 50, 300, "", function(value)
         Settings.SilentAimFOV = value
     end)
 
-    createSlider(tabPages["Aim Assist"], "Silent Smoothness", 238, math.floor(Settings.SilentAimSmoothness * 100), 1, 100, "%", function(value)
+    createSlider(tabPages["Aim Assist"], "Silent Smoothness", 368, math.floor(Settings.SilentAimSmoothness * 100), 1, 100, "%", function(value)
         Settings.SilentAimSmoothness = value / 100
     end)
 
-    createBoneSelector(tabPages["Aim Assist"], "Silent Target Bone", 282, Settings.SilentAimBone, {"Head", "Neck", "Chest"}, function(bone)
+    createBoneSelector(tabPages["Aim Assist"], "Silent Target Bone", 416, Settings.SilentAimBone, {"Head", "Neck", "Chest"}, function(bone)
         Settings.SilentAimBone = bone
     end)
 
-    createKeybindButton(tabPages["Aim Assist"], "Silent Aim Key", 316, Settings.SilentAimKey, function(newKey)
+    createKeybindButton(tabPages["Aim Assist"], "Silent Aim Key", 460, Settings.SilentAimKey, function(newKey)
         Settings.SilentAimKey = newKey
     end)
 
@@ -1098,7 +966,16 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
         local teammate = isTeammate(player)
         local isAllowed = Settings.BoxesEnabled and (not Settings.TeamCheckEnabled or Settings.TeamColorEnabled or not teammate)
 
-        if data.Box2D and isAllowed and data.CharModel and data.CharModel.Parent and isCharacterAlive(data.CharModel) then
+        -- Check if character is alive (instant check)
+        local charAlive = false
+        if data.CharModel and data.CharModel.Parent then
+            local humanoid = data.CharModel:FindFirstChildOfClass("Humanoid") or data.CharModel:FindFirstChildWhichIsA("Humanoid", true)
+            if humanoid then
+                charAlive = humanoid.Health > 0
+            end
+        end
+
+        if data.Box2D and isAllowed and charAlive then
             local cf, sz = getCustomBoundingBox(data.CharModel)
             local half = sz * 0.5
 
@@ -1168,12 +1045,18 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
                     local targetPart: BasePart?
                     local boneName = Settings.AimAssistBone
 
+                    -- Custom character model support: try multiple bone names
                     if boneName == "Head" then
-                        targetPart = data.CharModel:FindFirstChild("Head")
+                        targetPart = data.CharModel:FindFirstChild("Head") or data.CharModel:FindFirstChild("Head1") or data.CharModel:FindFirstChild("Head2")
                     elseif boneName == "Neck" then
-                        targetPart = data.CharModel:FindFirstChild("Neck") or data.CharModel:FindFirstChild("UpperTorso")
+                        targetPart = data.CharModel:FindFirstChild("Neck") or data.CharModel:FindFirstChild("UpperTorso") or data.CharModel:FindFirstChild("Chest")
                     elseif boneName == "Chest" then
-                        targetPart = data.CharModel:FindFirstChild("UpperTorso") or data.CharModel:FindFirstChild("Torso") or data.CharModel:FindFirstChild("HumanoidRootPart")
+                        targetPart = data.CharModel:FindFirstChild("UpperTorso") or data.CharModel:FindFirstChild("Torso") or data.CharModel:FindFirstChild("Chest") or data.CharModel:FindFirstChild("HumanoidRootPart")
+                    end
+
+                    -- Fallback: use TargetAnchor if no bone found
+                    if not targetPart and data.TargetAnchor and data.TargetAnchor.Parent then
+                        targetPart = data.TargetAnchor
                     end
 
                     if targetPart and targetPart:IsA("BasePart") then
@@ -1195,7 +1078,6 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
 
             if closestTarget then
                 local targetCFrame = closestTarget.CFrame
-                local currentMouseDelta = UserInputService:GetMouseDelta()
                 local aimDelta = (targetCFrame * CFrame.new(0, 0, -10) - Camera.CFrame.p).Unit * Settings.AimAssistSmoothness
 
                 UserInputService.SendMouseMovement(
@@ -1203,12 +1085,15 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
                     math.floor(aimDelta.Y * 100)
                 )
             end
+        end
 
-            -- Update FOV Circle
+        -- Update FOV Circle (always visible when FOV circle toggle is enabled)
+        if Settings.AimAssistFOVCircleEnabled then
             fovCircle.Visible = true
             fovCircle.Size = UDim2.new(0, Settings.AimAssistFOV * 2, 0, Settings.AimAssistFOV * 2)
-            fovCircle.BackgroundTransparency = 0.7
-            fovCircle.BorderSizePixel = 2
+            fovCircle.BackgroundTransparency = isAimKeyDown and 0.5 or 0.8
+            fovCircle.BorderSizePixel = isAimKeyDown and 3 or 2
+            fovCircle.BorderColor3 = isAimKeyDown and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(0, 190, 255)
         else
             fovCircle.Visible = false
         end
