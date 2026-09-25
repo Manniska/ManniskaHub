@@ -741,6 +741,145 @@ local function buildModernUI()
         end)
     end
 
+    -- Helper: Slider Maker (FOV, Smoothness, etc.)
+    local function createSlider(parentPage: Frame, titleText: string, yPos: number, initialValue: number, minValue: number, maxValue: number, unit: string, onValueChanged: (number) -> ())
+        local container = Instance.new("Frame")
+        container.Size = UDim2.new(1, 0, 0, 48)
+        container.Position = UDim2.new(0, 0, 0, yPos)
+        container.BackgroundTransparency = 1
+        container.Parent = parentPage
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.45, 0, 0, 14)
+        label.Position = UDim2.new(0, 16, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Font = Enum.Font.GothamBold
+        label.Text = titleText
+        label.TextColor3 = Color3.fromRGB(170, 185, 205)
+        label.TextSize = 10
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = container
+
+        local valueLabel = Instance.new("TextLabel")
+        valueLabel.Size = UDim2.new(0.3, 0, 0, 14)
+        valueLabel.Position = UDim2.new(0.7, 0, 0, 0)
+        valueLabel.BackgroundTransparency = 1
+        valueLabel.Font = Enum.Font.GothamBold
+        valueLabel.Text = initialValue .. unit
+        valueLabel.TextColor3 = Color3.fromRGB(0, 190, 255)
+        valueLabel.TextSize = 10
+        valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+        valueLabel.Parent = container
+
+        local track = Instance.new("TextButton")
+        track.Size = UDim2.new(1, -32, 0, 8)
+        track.Position = UDim2.new(0, 16, 0, 24)
+        track.Text = ""
+        track.AutoButtonColor = false
+        track.BorderSizePixel = 0
+        track.BackgroundColor3 = Color3.fromRGB(30, 42, 58)
+        track.Parent = container
+
+        local trackCorner = Instance.new("UICorner")
+        trackCorner.CornerRadius = UDim.new(1, 0)
+        trackCorner.Parent = track
+
+        local knob = Instance.new("Frame")
+        knob.Size = UDim2.new(0, 14, 0, 14)
+        knob.AnchorPoint = Vector2.new(0.5, 0.5)
+        local initialPos = (initialValue - minValue) / (maxValue - minValue)
+        knob.Position = UDim2.new(initialPos, 0, 0.5, 0)
+        knob.BackgroundColor3 = Color3.fromRGB(0, 190, 255)
+        knob.BorderSizePixel = 0
+        knob.Parent = track
+
+        local knobCorner = Instance.new("UICorner")
+        knobCorner.CornerRadius = UDim.new(1, 0)
+        knobCorner.Parent = knob
+
+        local knobStroke = Instance.new("UIStroke")
+        knobStroke.Color = Color3.fromRGB(20, 20, 20)
+        knobStroke.Thickness = 1.5
+        knobStroke.Parent = knob
+
+        local isSliding = false
+        local function updateValueFromInput(inputX: number)
+            local relX = math.clamp((inputX - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+            knob.Position = UDim2.new(relX, 0, 0.5, 0)
+            local newValue = math.floor(minValue + relX * (maxValue - minValue))
+            valueLabel.Text = newValue .. unit
+            onValueChanged(newValue)
+        end
+
+        track.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                isSliding = true
+                updateValueFromInput(input.Position.X)
+            end
+        end)
+
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                isSliding = false
+            end
+        end)
+
+        UserInputService.InputChanged:Connect(function(input)
+            if isSliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                updateValueFromInput(input.Position.X)
+            end
+        end)
+    end
+
+    -- Helper: Bone Target Selector
+    local function createBoneSelector(parentPage: Frame, titleText: string, yPos: number, currentBone: string, bones: {string}, onBoneChanged: (string) -> ())
+        local container = Instance.new("Frame")
+        container.Size = UDim2.new(1, 0, 0, 40)
+        container.Position = UDim2.new(0, 0, 0, yPos)
+        container.BackgroundTransparency = 1
+        container.Parent = parentPage
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.45, 0, 1, 0)
+        label.Position = UDim2.new(0, 16, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Font = Enum.Font.GothamBold
+        label.Text = titleText
+        label.TextColor3 = Color3.fromRGB(180, 195, 215)
+        label.TextSize = 11
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = container
+
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.45, 0, 1, 0)
+        btn.Position = UDim2.new(0.55, 0, 0, 0)
+        btn.BackgroundColor3 = Color3.fromRGB(25, 30, 40)
+        btn.BorderSizePixel = 0
+        btn.Font = Enum.Font.GothamBold
+        btn.Text = currentBone
+        btn.TextColor3 = Color3.fromRGB(0, 190, 255)
+        btn.TextSize = 10
+        btn.AutoButtonColor = false
+        btn.Parent = container
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 6)
+        btnCorner.Parent = btn
+
+        local btnStroke = Instance.new("UIStroke")
+        btnStroke.Color = Color3.fromRGB(50, 65, 85)
+        btnStroke.Thickness = 1.5
+        btnStroke.Parent = btn
+
+        local currentIndex = table.find(bones, currentBone) or 1
+        btn.MouseButton1Click:Connect(function()
+            currentIndex = (currentIndex % #bones) + 1
+            local newBone = bones[currentIndex]
+            btn.Text = newBone
+            onBoneChanged(newBone)
+        end)
+    end
+
     -----------------------------------------------------------------
     -- Tab 1: Visuals Controls
     -----------------------------------------------------------------
