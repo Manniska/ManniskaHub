@@ -1383,7 +1383,9 @@ do
 
 				if closestTarget then
 					local targetCFrame = closestTarget.CFrame
-					local aimDelta = (targetCFrame * CFrame.new(0, 0, -10) - camera.CFrame.p).Unit * Settings.AimAssistSmoothness
+					local targetPos = targetCFrame * CFrame.new(0, 0, -10)
+					local direction = (targetPos.Position - camera.CFrame.p).Unit
+					local aimDelta = direction * Settings.AimAssistSmoothness
 
 					UserInputService.SendMouseMovement(
 						math.floor(aimDelta.X * 100),
